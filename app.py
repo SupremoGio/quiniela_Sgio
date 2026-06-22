@@ -15,6 +15,7 @@ Para correrlo localmente:
     flask --app app run --debug
 """
 import os
+import re
 from datetime import datetime
 
 import click
@@ -27,6 +28,133 @@ from models import Jugador, Partido, Prediccion, db
 from scoring import calcular_puntos
 
 load_dotenv()
+
+
+def _buscar_jugador_insensible(nombre_jugador):
+    """SQLite's LOWER() no convierte tildes/acentos, así que comparamos en
+    Python para que la búsqueda sea insensible a mayúsculas y acentos."""
+    nombre_norm = nombre_jugador.strip().lower()
+    for j in Jugador.query.all():
+        if j.nombre.strip().lower() == nombre_norm:
+            return j
+    return None
+
+
+def _buscar_partido_insensible(jornada, eq_local, eq_visitante):
+    eq_local_norm = eq_local.strip().lower()
+    eq_visitante_norm = eq_visitante.strip().lower()
+    for p in Partido.query.filter_by(jornada=jornada).all():
+        if p.equipo_local.strip().lower() == eq_local_norm and p.equipo_visitante.strip().lower() == eq_visitante_norm:
+            return p
+    return None
+
+
+def _guardar_prediccion(nombre_jugador, jornada, eq_local, eq_visitante, pred_local, pred_visitante):
+    """Crea/actualiza Jugador, Partido y Prediccion para una fila ya parseada."""
+    jugador = _buscar_jugador_insensible(nombre_jugador)
+    if jugador is None:
+        jugador = Jugador(nombre=nombre_jugador)
+        db.session.add(jugador)
+        db.session.flush()
+
+    partido = _buscar_partido_insensible(jornada, eq_local, eq_visitante)
+    if partido is None:
+        partido = Partido(jornada=jornada, equipo_local=eq_local, equipo_visitante=eq_visitante)
+        db.session.add(partido)
+        db.session.flush()
+
+    prediccion = Prediccion.query.filter_by(
+        jugador_id=jugador.id, partido_id=partido.id
+    ).first()
+    if prediccion is None:
+        prediccion = Prediccion(jugador_id=jugador.id, partido_id=partido.id)
+        db.session.add(prediccion)
+
+    prediccion.pred_local = pred_local
+    prediccion.pred_visitante = pred_visitante
+    if partido.finalizado:
+        prediccion.puntos = calcular_puntos(
+            pred_local, pred_visitante, partido.marcador_local, partido.marcador_visitante
+        )
+
+
+def _importar_formato_largo(df):
+    """Formato: una fila por jugador+partido, columnas jornada/jugador/
+    equipo_local/equipo_visitante/pred_local/pred_visitante."""
+    filas_ok, filas_error = 0, 0
+    for _, fila in df.iterrows():
+        try:
+            nombre_jugador = str(fila["jugador"]).strip()
+            jornada = int(fila["jornada"])
+            eq_local = str(fila["equipo_local"]).strip()
+            eq_visitante = str(fila["equipo_visitante"]).strip()
+            pred_local = int(fila["pred_local"])
+            pred_visitante = int(fila["pred_visitante"])
+        except (ValueError, KeyError):
+            filas_error += 1
+            continue
+
+        _guardar_prediccion(nombre_jugador, jornada, eq_local, eq_visitante, pred_local, pred_visitante)
+        filas_ok += 1
+
+    return filas_ok, filas_error
+
+
+def _parsear_marcador(valor):
+    """'o'/'O' (o vacío) significa 0 goles. Lanza ValueError si no es válido."""
+    if valor is None:
+        raise ValueError("vacío")
+    texto = str(valor).strip().lower()
+    if texto in ("", "nan"):
+        raise ValueError("vacío")
+    if texto == "o":
+        return 0
+    return int(float(texto))
+
+
+def _importar_formato_ancho(df, jornada):
+    """Formato: una fila por jugador, columnas por equipo en pares
+    (equipo_local, equipo_visitante, equipo_local, equipo_visitante, ...).
+    La primera columna es el nombre del jugador; las siguientes columnas
+    que no sean equipos (p. ej. 'CAMPEON') deben descartarse antes de
+    llamar a esta función si no vienen en pares."""
+    columnas = list(df.columns)
+    if len(columnas) < 3:
+        raise ValueError("El archivo no tiene columnas de equipos suficientes.")
+
+    col_jugador = columnas[0]
+    columnas_equipos = columnas[2:]  # se descarta la 2da columna (ej. 'CAMPEON')
+    if len(columnas_equipos) % 2 != 0:
+        columnas_equipos = columnas_equipos[:-1]
+
+    pares = list(zip(columnas_equipos[0::2], columnas_equipos[1::2]))
+
+    filas_ok, filas_error = 0, 0
+    for _, fila in df.iterrows():
+        nombre_jugador = fila[col_jugador]
+        if pd.isna(nombre_jugador) or not str(nombre_jugador).strip():
+            continue
+        nombre_jugador = str(nombre_jugador).strip()
+
+        for eq_local, eq_visitante in pares:
+            valor_local = fila[eq_local]
+            valor_visitante = fila[eq_visitante]
+            if pd.isna(valor_local) and pd.isna(valor_visitante):
+                continue
+            try:
+                pred_local = _parsear_marcador(valor_local)
+                pred_visitante = _parsear_marcador(valor_visitante)
+            except ValueError:
+                filas_error += 1
+                continue
+
+            _guardar_prediccion(
+                nombre_jugador, jornada, str(eq_local).strip(), str(eq_visitante).strip(),
+                pred_local, pred_visitante,
+            )
+            filas_ok += 1
+
+    return filas_ok, filas_error
 
 
 def crear_app():
@@ -207,8 +335,9 @@ def crear_app():
                 flash("Selecciona un archivo .xlsx o .csv", "error")
                 return redirect(url_for("upload"))
 
+            es_csv = archivo.filename.lower().endswith(".csv")
             try:
-                if archivo.filename.lower().endswith(".csv"):
+                if es_csv:
                     df = pd.read_csv(archivo)
                 else:
                     df = pd.read_excel(archivo)
@@ -220,57 +349,42 @@ def crear_app():
                 "jornada", "jugador", "equipo_local", "equipo_visitante",
                 "pred_local", "pred_visitante",
             }
-            df.columns = [c.strip().lower() for c in df.columns]
-            faltantes = columnas_esperadas - set(df.columns)
-            if faltantes:
-                flash("Al archivo le faltan estas columnas: " + ", ".join(sorted(faltantes)), "error")
-                return redirect(url_for("upload"))
+            df.columns = [str(c).strip().lower() for c in df.columns]
 
-            filas_ok, filas_error = 0, 0
-            for _, fila in df.iterrows():
-                try:
-                    nombre_jugador = str(fila["jugador"]).strip()
-                    jornada = int(fila["jornada"])
-                    eq_local = str(fila["equipo_local"]).strip()
-                    eq_visitante = str(fila["equipo_visitante"]).strip()
-                    pred_local = int(fila["pred_local"])
-                    pred_visitante = int(fila["pred_visitante"])
-                except (ValueError, KeyError):
-                    filas_error += 1
-                    continue
+            if columnas_esperadas <= set(df.columns):
+                filas_ok, filas_error = _importar_formato_largo(df)
+            else:
+                # Formato "ancho": una fila por jugador, columnas por equipo
+                # en pares (equipo_local, equipo_visitante, equipo_local, ...).
+                jornada_form = request.form.get("jornada", "").strip()
+                jornada = None
+                if jornada_form.isdigit():
+                    jornada = int(jornada_form)
+                else:
+                    m = re.search(r"jornada[_\s-]*(\d+)", archivo.filename, re.IGNORECASE)
+                    if m:
+                        jornada = int(m.group(1))
 
-                jugador = Jugador.query.filter(
-                    db.func.lower(Jugador.nombre) == nombre_jugador.lower()
-                ).first()
-                if jugador is None:
-                    jugador = Jugador(nombre=nombre_jugador)
-                    db.session.add(jugador)
-                    db.session.flush()
-
-                partido = Partido.query.filter(
-                    Partido.jornada == jornada,
-                    db.func.lower(Partido.equipo_local) == eq_local.lower(),
-                    db.func.lower(Partido.equipo_visitante) == eq_visitante.lower(),
-                ).first()
-                if partido is None:
-                    partido = Partido(jornada=jornada, equipo_local=eq_local, equipo_visitante=eq_visitante)
-                    db.session.add(partido)
-                    db.session.flush()
-
-                prediccion = Prediccion.query.filter_by(
-                    jugador_id=jugador.id, partido_id=partido.id
-                ).first()
-                if prediccion is None:
-                    prediccion = Prediccion(jugador_id=jugador.id, partido_id=partido.id)
-                    db.session.add(prediccion)
-
-                prediccion.pred_local = pred_local
-                prediccion.pred_visitante = pred_visitante
-                if partido.finalizado:
-                    prediccion.puntos = calcular_puntos(
-                        pred_local, pred_visitante, partido.marcador_local, partido.marcador_visitante
+                if jornada is None:
+                    flash(
+                        "No se pudo detectar la jornada. Indícala en el campo "
+                        "'Jornada' del formulario o nombra el archivo tipo "
+                        "'JORNADA_2.xlsx'.",
+                        "error",
                     )
-                filas_ok += 1
+                    return redirect(url_for("upload"))
+
+                try:
+                    df_ancho = pd.read_excel(archivo, header=1) if not es_csv else pd.read_csv(archivo, header=1)
+                except Exception as exc:
+                    flash(f"No se pudo leer el archivo: {exc}", "error")
+                    return redirect(url_for("upload"))
+
+                try:
+                    filas_ok, filas_error = _importar_formato_ancho(df_ancho, jornada)
+                except ValueError as exc:
+                    flash(str(exc), "error")
+                    return redirect(url_for("upload"))
 
             db.session.commit()
             flash(f"Importadas {filas_ok} predicciones. {filas_error} fila(s) con error.", "success")
@@ -283,7 +397,7 @@ def crear_app():
         if request.method == "POST":
             nombre = request.form.get("nombre", "").strip()
             if nombre:
-                existe = Jugador.query.filter(db.func.lower(Jugador.nombre) == nombre.lower()).first()
+                existe = _buscar_jugador_insensible(nombre)
                 if existe:
                     flash("Ese jugador ya existe.", "error")
                 else:

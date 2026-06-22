@@ -4,10 +4,14 @@
 
 <h2>Subir predicciones</h2>
 <p class="text-muted">
-  Sube un archivo Excel (.xlsx) o CSV con las predicciones de todos los participantes para una jornada.
-  El archivo debe tener exactamente estas columnas (en cualquier orden, los nombres no distinguen mayúsculas):
+  Se acepta cualquiera de estos dos formatos de Excel/CSV:
 </p>
 
+<h5>Formato largo</h5>
+<p class="text-muted">
+  Una fila por cada combinación jugador + partido, con estas columnas (en cualquier orden,
+  no distinguen mayúsculas):
+</p>
 <table class="table table-sm table-bordered w-auto">
   <thead><tr><th>jornada</th><th>jugador</th><th>equipo_local</th><th>equipo_visitante</th><th>pred_local</th><th>pred_visitante</th></tr></thead>
   <tbody>
@@ -16,14 +20,20 @@
   </tbody>
 </table>
 
+<h5>Formato ancho (por pares de equipos)</h5>
 <p class="text-muted">
-  Una fila por cada combinación jugador + partido. Si suben los 18 jugadores y 12 partidos de una
-  jornada, eso son 216 filas — exporten todo desde su Excel de control y súbanlo de una sola vez.
-  Los nombres de equipo deben coincidir entre filas del mismo partido (no necesitan coincidir
-  exactamente con la API; eso se resuelve al sincronizar resultados).
+  Una fila por jugador. La primera columna es el nombre, la segunda se ignora (ej. "Campeón"),
+  y las siguientes columnas son los equipos en pares: cada dos columnas consecutivas forman un
+  partido (equipo_local, equipo_visitante). El valor de cada celda es el marcador predicho para
+  ese equipo; usa <code>o</code> para 0 goles. Indica la jornada abajo, o nombra el archivo tipo
+  <code>JORNADA_2.xlsx</code> para que se detecte automáticamente.
 </p>
 
 <form method="post" enctype="multipart/form-data" class="mt-4">
+  <div class="mb-3">
+    <label class="form-label">Jornada (solo necesario para el formato ancho, si el nombre del archivo no la indica)</label>
+    <input class="form-control w-auto" type="number" name="jornada" min="1" placeholder="ej. 2">
+  </div>
   <div class="mb-3">
     <input class="form-control" type="file" name="archivo" accept=".xlsx,.xls,.csv" required>
   </div>
