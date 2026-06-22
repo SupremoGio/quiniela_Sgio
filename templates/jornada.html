@@ -13,6 +13,10 @@
     <form method="post" action="{{ url_for('sync_jornada', jornada=jornada) }}">
       <button class="btn btn-primary btn-sm" type="submit">↻ Actualizar resultados</button>
     </form>
+    <form method="post" action="{{ url_for('eliminar_jornada', jornada=jornada) }}"
+          onsubmit="return confirm('¿Seguro que quieres borrar TODOS los partidos y predicciones de la jornada {{ jornada }}? Esto no se puede deshacer.');">
+      <button class="btn btn-outline-danger btn-sm" type="submit">🗑 Borrar jornada</button>
+    </form>
   </div>
 </div>
 

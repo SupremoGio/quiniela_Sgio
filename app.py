@@ -318,6 +318,16 @@ def crear_app():
             flash(str(exc), "error")
         return redirect(url_for("ver_jornada", jornada=jornada))
 
+    @app.route("/jornada/<int:jornada>/eliminar", methods=["POST"])
+    def eliminar_jornada(jornada):
+        partidos = Partido.query.filter_by(jornada=jornada).all()
+        cantidad = len(partidos)
+        for partido in partidos:
+            db.session.delete(partido)  # cascade borra también sus predicciones
+        db.session.commit()
+        flash(f"Se eliminó la jornada {jornada}: {cantidad} partido(s) y sus predicciones.", "success")
+        return redirect(url_for("index"))
+
     @app.route("/sync-calendario", methods=["POST"])
     def sync_calendario():
         try:
