@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Jugadores - Quiniela Mundial 2026{% endblock %}
+{% block content %}
+<h1 class="mb-4">Jugadores</h1>
+
+<form method="post" class="row g-2 mb-4">
+  <div class="col-auto">
+    <input type="text" name="nombre" class="form-control" placeholder="Nombre del jugador" required>
+  </div>
+  <div class="col-auto">
+    <button type="submit" class="btn btn-primary">Agregar</button>
+  </div>
+</form>
+
+{% if not jugadores %}
+<p class="text-muted">Todavia no hay jugadores.</p>
+{% else %}
+<table class="table table-striped align-middle">
+  <thead>
+    <tr>
+      <th>Nombre</th>
+      <th>Agregado</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for jugador in jugadores %}
+    <tr>
+      <td>{{ jugador.nombre }}</td>
+      <td>{{ jugador.creado_en.strftime("%Y-%m-%d") if jugador.creado_en else "" }}</td>
+      <td class="text-end">
+        <form method="post" action="{{ url_for('eliminar_jugador', jugador_id=jugador.id) }}" onsubmit="return confirm('Eliminar a {{ jugador.nombre }}?');">
+          <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

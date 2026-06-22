@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Tabla de posiciones - Quiniela Mundial 2026{% endblock %}
+{% block content %}
+<h1 class="mb-4">Tabla de posiciones</h1>
+
+{% if not tabla %}
+<p class="text-muted">Todavia no hay jugadores. Ve a <a href="{{ url_for('jugadores') }}">Jugadores</a> para agregar.</p>
+{% else %}
+<table class="table table-striped table-hover align-middle">
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Jugador</th>
+      <th class="text-end">Puntos</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for fila in tabla %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td>{{ fila.jugador.nombre }}</td>
+      <td class="text-end fw-bold">{{ fila.puntos }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}{{ jornada_label(jornada) }} - Quiniela Mundial 2026{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h1>{{ jornada_label(jornada) }}</h1>
+  <form method="post" action="{{ url_for('actualizar_jornada', jornada=jornada) }}">
+    <button type="submit" class="btn btn-primary">&#8635; Actualizar resultados</button>
+  </form>
+</div>
+
+{% if not partidos %}
+<p class="text-muted">No hay partidos cargados para esta jornada todavia. Usa <code>flask --app app sync-fixtures</code> o agrega manualmente.</p>
+{% endif %}
+
+{% for partido in partidos %}
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between">
+    <span>{{ partido.equipo_local }} vs {{ partido.equipo_visitante }}</span>
+    <span>
+      {% if partido.tiene_resultado %}
+        <strong>{{ partido.marcador_local }} - {{ partido.marcador_visitante }}</strong>
+      {% else %}
+        <span class="text-muted">Sin resultado</span>
+      {% endif %}
+    </span>
+  </div>
+  <div class="card-body p-0">
+    <table class="table table-sm mb-0">
+      <thead>
+        <tr>
+          <th>Jugador</th>
+          <th>Prediccion</th>
+          <th class="text-end">Puntos</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for jugador in jugadores %}
+        {% set pred = predicciones.get(partido.id, {}).get(jugador.id) %}
+        <tr>
+          <td>{{ jugador.nombre }}</td>
+          <td>
+            {% if pred %}
+              {{ pred.pred_local }} - {{ pred.pred_visitante }}
+            {% else %}
+              <span class="text-muted">Sin prediccion</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            {% if pred and pred.puntos is not none %}
+              {{ pred.puntos }}
+            {% else %}
+              <span class="text-muted">-</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

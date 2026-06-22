@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Subir predicciones - Quiniela Mundial 2026{% endblock %}
+{% block content %}
+<h1 class="mb-4">Subir predicciones</h1>
+
+<p>
+  Sube un archivo Excel (.xlsx) o CSV con las columnas
+  <code>jornada, jugador, equipo_local, equipo_visitante, pred_local, pred_visitante</code>
+  (mayusculas/minusculas y orden no importan). Si un jugador o partido no existe,
+  se crea automaticamente.
+</p>
+
+<form method="post" enctype="multipart/form-data" class="row g-2">
+  <div class="col-auto">
+    <input type="file" name="archivo" class="form-control" accept=".xlsx,.xls,.csv" required>
+  </div>
+  <div class="col-auto">
+    <button type="submit" class="btn btn-primary">Subir</button>
+  </div>
+</form>
+{% endblock %}
