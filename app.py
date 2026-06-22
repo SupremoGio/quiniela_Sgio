@@ -37,12 +37,20 @@ def normalizar(texto: str) -> str:
 
 def create_app() -> Flask:
     app = Flask(__name__)
-    app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-key")
+    app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or "dev-secret-key"
+
+    instance_dir = os.path.join(app.root_path, "instance")
+    os.makedirs(instance_dir, exist_ok=True)
+
     db_uri = os.environ.get("SQLALCHEMY_DATABASE_URI", "sqlite:///instance/quiniela.db")
+    if db_uri.startswith("sqlite:///") and not db_uri.startswith("sqlite:////"):
+        # Resolver la ruta relativa contra el directorio del proyecto, no el cwd.
+        rel_path = db_uri[len("sqlite:///"):]
+        abs_path = os.path.join(app.root_path, rel_path)
+        db_uri = "sqlite:///" + abs_path
+
     app.config["SQLALCHEMY_DATABASE_URI"] = db_uri
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
-    os.makedirs(os.path.join(app.root_path, "instance"), exist_ok=True)
 
     db.init_app(app)
 
