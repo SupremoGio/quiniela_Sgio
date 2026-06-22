@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Tabla de posiciones — Quiniela Mundial 2026{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0">Tabla de posiciones</h2>
+  <form method="post" action="{{ url_for('sync_calendario') }}">
+    <button class="btn btn-outline-secondary btn-sm" type="submit">↻ Sincronizar calendario del Mundial</button>
+  </form>
+</div>
+
+{% if not tabla %}
+  <p class="text-muted">Todavía no hay jugadores ni predicciones cargadas. Empieza por
+    <a href="{{ url_for('jugadores') }}">agregar a los participantes</a> y
+    <a href="{{ url_for('upload') }}">subir las predicciones</a>.</p>
+{% else %}
+<table class="table table-striped align-middle">
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Jugador</th>
+      <th class="text-center">Marcadores exactos (3 pts)</th>
+      <th class="text-center">Resultados acertados (1 pt)</th>
+      <th class="text-center">Puntos totales</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for j in tabla %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td><a href="{{ url_for('detalle_jugador', jugador_id=j.id) }}">{{ j.nombre }}</a></td>
+      <td class="text-center">{{ j.aciertos_exactos }}</td>
+      <td class="text-center">{{ j.aciertos_resultado }}</td>
+      <td class="text-center fw-bold">{{ j.puntos_totales }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<h5 class="mt-4">Jornadas</h5>
+{% if not jornadas %}
+  <p class="text-muted">Aún no hay partidos cargados. Usa el botón de arriba para traer el calendario completo desde la API, o sube un excel de predicciones (eso también crea los partidos).</p>
+{% else %}
+<div class="d-flex flex-wrap gap-2">
+  {% for j in jornadas %}
+    <a class="btn btn-outline-primary" href="{{ url_for('ver_jornada', jornada=j) }}">Jornada {{ j }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% endblock %}

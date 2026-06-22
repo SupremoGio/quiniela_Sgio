@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Jornada {{ jornada }} — Quiniela Mundial 2026{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0">Jornada {{ jornada }}</h2>
+  <div class="d-flex gap-2">
+    <select class="form-select form-select-sm" style="width:auto" onchange="window.location.href='/jornada/'+this.value">
+      {% for j in jornadas %}
+        <option value="{{ j }}" {% if j == jornada %}selected{% endif %}>Jornada {{ j }}</option>
+      {% endfor %}
+    </select>
+    <form method="post" action="{{ url_for('sync_jornada', jornada=jornada) }}">
+      <button class="btn btn-primary btn-sm" type="submit">↻ Actualizar resultados</button>
+    </form>
+  </div>
+</div>
+
+{% if not partidos %}
+  <p class="text-muted">No hay partidos cargados para esta jornada todavía.</p>
+{% endif %}
+
+{% for partido in partidos %}
+<div class="card mb-3">
+  <div class="card-header d-flex justify-content-between">
+    <span><strong>{{ partido.equipo_local }}</strong> vs <strong>{{ partido.equipo_visitante }}</strong></span>
+    <span>
+      {% if partido.finalizado %}
+        <span class="badge bg-success">{{ partido.marcador_local }} - {{ partido.marcador_visitante }}</span>
+      {% else %}
+        <span class="badge bg-secondary">Pendiente</span>
+      {% endif %}
+    </span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm mb-0">
+      <thead>
+        <tr><th>Jugador</th><th class="text-center">Predicción</th><th class="text-center">Puntos</th></tr>
+      </thead>
+      <tbody>
+        {% for jugador in jugadores %}
+          {% set pred = predicciones.get((jugador.id, partido.id)) %}
+          <tr>
+            <td>{{ jugador.nombre }}</td>
+            <td class="text-center">
+              {% if pred %}{{ pred.pred_local }} - {{ pred.pred_visitante }}{% else %}<span class="text-muted">sin predicción</span>{% endif %}
+            </td>
+            <td class="text-center">
+              {% if pred and pred.puntos is not none %}
+                <span class="badge {{ 'bg-success' if pred.puntos == 3 else ('bg-warning text-dark' if pred.puntos == 1 else 'bg-light text-dark') }}">{{ pred.puntos }}</span>
+              {% else %}—{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endfor %}
+
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ jugador.nombre }} — detalle{% endblock %}
+{% block content %}
+
+<h2>{{ jugador.nombre }}</h2>
+<p class="lead">Puntos totales: <strong>{{ jugador.puntos_totales }}</strong>
+  &nbsp;·&nbsp; Marcadores exactos: {{ jugador.aciertos_exactos }}
+  &nbsp;·&nbsp; Resultados acertados: {{ jugador.aciertos_resultado }}
+</p>
+
+<table class="table table-striped">
+  <thead>
+    <tr><th>Jornada</th><th>Partido</th><th class="text-center">Predicción</th><th class="text-center">Real</th><th class="text-center">Puntos</th></tr>
+  </thead>
+  <tbody>
+    {% for pred in predicciones %}
+    <tr>
+      <td>{{ pred.partido.jornada }}</td>
+      <td>{{ pred.partido.equipo_local }} vs {{ pred.partido.equipo_visitante }}</td>
+      <td class="text-center">{{ pred.pred_local }} - {{ pred.pred_visitante }}</td>
+      <td class="text-center">
+        {% if pred.partido.finalizado %}{{ pred.partido.marcador_local }} - {{ pred.partido.marcador_visitante }}{% else %}<span class="text-muted">pendiente</span>{% endif %}
+      </td>
+      <td class="text-center">
+        {% if pred.puntos is not none %}
+          <span class="badge {{ 'bg-success' if pred.puntos == 3 else ('bg-warning text-dark' if pred.puntos == 1 else 'bg-light text-dark') }}">{{ pred.puntos }}</span>
+        {% else %}—{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<a class="btn btn-secondary" href="{{ url_for('index') }}">← Volver a la tabla</a>
+
+{% endblock %}

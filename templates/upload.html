@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Subir predicciones{% endblock %}
+{% block content %}
+
+<h2>Subir predicciones</h2>
+<p class="text-muted">
+  Sube un archivo Excel (.xlsx) o CSV con las predicciones de todos los participantes para una jornada.
+  El archivo debe tener exactamente estas columnas (en cualquier orden, los nombres no distinguen mayúsculas):
+</p>
+
+<table class="table table-sm table-bordered w-auto">
+  <thead><tr><th>jornada</th><th>jugador</th><th>equipo_local</th><th>equipo_visitante</th><th>pred_local</th><th>pred_visitante</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Gio</td><td>Mexico</td><td>Poland</td><td>2</td><td>1</td></tr>
+    <tr><td>1</td><td>Ana</td><td>Mexico</td><td>Poland</td><td>1</td><td>1</td></tr>
+  </tbody>
+</table>
+
+<p class="text-muted">
+  Una fila por cada combinación jugador + partido. Si suben los 18 jugadores y 12 partidos de una
+  jornada, eso son 216 filas — exporten todo desde su Excel de control y súbanlo de una sola vez.
+  Los nombres de equipo deben coincidir entre filas del mismo partido (no necesitan coincidir
+  exactamente con la API; eso se resuelve al sincronizar resultados).
+</p>
+
+<form method="post" enctype="multipart/form-data" class="mt-4">
+  <div class="mb-3">
+    <input class="form-control" type="file" name="archivo" accept=".xlsx,.xls,.csv" required>
+  </div>
+  <button class="btn btn-primary" type="submit">Subir e importar</button>
+</form>
+
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Jugadores{% endblock %}
+{% block content %}
+
+<h2>Participantes</h2>
+
+<form method="post" class="row g-2 mb-4">
+  <div class="col-auto">
+    <input class="form-control" type="text" name="nombre" placeholder="Nombre del participante" required>
+  </div>
+  <div class="col-auto">
+    <button class="btn btn-primary" type="submit">Agregar</button>
+  </div>
+</form>
+
+<ul class="list-group">
+  {% for j in jugadores %}
+  <li class="list-group-item d-flex justify-content-between align-items-center">
+    <a href="{{ url_for('detalle_jugador', jugador_id=j.id) }}">{{ j.nombre }}</a>
+    <form method="post" action="{{ url_for('eliminar_jugador', jugador_id=j.id) }}" onsubmit="return confirm('¿Eliminar a {{ j.nombre }} y todas sus predicciones?');">
+      <button class="btn btn-sm btn-outline-danger" type="submit">Eliminar</button>
+    </form>
+  </li>
+  {% else %}
+  <li class="list-group-item text-muted">Todavía no hay participantes. Agrega aquí a los 18, o súbelos directamente al importar tu primer excel de predicciones.</li>
+  {% endfor %}
+</ul>
+
+{% endblock %}
