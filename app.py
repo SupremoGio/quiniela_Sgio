@@ -763,6 +763,24 @@ def crear_app():
         flash(f"Jugador '{jugador.nombre}' eliminado.", "success")
         return redirect(url_for("jugadores"))
 
+    @app.route("/admin/diagnostico")
+    def admin_diagnostico():
+        if request.args.get("token") != app.config["SECRET_KEY"]:
+            return "no autorizado", 404
+        data = []
+        for j in Jugador.query.order_by(Jugador.nombre).all():
+            pc = j.prediccion_campeon
+            data.append({
+                "id": j.id,
+                "nombre": j.nombre,
+                "puntos_totales": j.puntos_totales,
+                "num_predicciones": len(j.predicciones),
+                "prediccion_campeon": (
+                    {"equipo": pc.equipo, "puntos": pc.puntos} if pc else None
+                ),
+            })
+        return {"jugadores": data}
+
     @app.route("/jugador/<int:jugador_id>")
     def detalle_jugador(jugador_id):
         jugador = Jugador.query.get_or_404(jugador_id)
