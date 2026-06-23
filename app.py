@@ -25,7 +25,7 @@ from dotenv import load_dotenv
 from flask import Flask, flash, redirect, render_template, request, url_for
 
 import football_api
-from models import Jugador, Partido, Prediccion, db
+from models import ConfigApp, Jugador, Partido, Prediccion, PrediccionCampeon, db
 from scoring import calcular_puntos
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
@@ -39,6 +39,20 @@ def _buscar_jugador_insensible(nombre_jugador):
         if j.nombre.strip().lower() == nombre_norm:
             return j
     return None
+
+
+def _guardar_prediccion_campeon(nombre_jugador, equipo):
+    jugador = _buscar_jugador_insensible(nombre_jugador)
+    if not jugador:
+        return
+    equipo = str(equipo).strip()
+    if not equipo or equipo.lower() == "nan":
+        return
+    existing = PrediccionCampeon.query.filter_by(jugador_id=jugador.id).first()
+    if existing:
+        existing.equipo = equipo
+    else:
+        db.session.add(PrediccionCampeon(jugador_id=jugador.id, equipo=equipo))
 
 
 def _buscar_partido_insensible(jornada, eq_local, eq_visitante):
@@ -124,7 +138,8 @@ def _importar_formato_ancho(df, jornada):
         raise ValueError("El archivo no tiene columnas de equipos suficientes.")
 
     col_jugador = columnas[0]
-    columnas_equipos = columnas[2:]  # se descarta la 2da columna (ej. 'CAMPEON')
+    col_campeon = columnas[1]  # segunda columna: campeón elegido
+    columnas_equipos = columnas[2:]
     if len(columnas_equipos) % 2 != 0:
         columnas_equipos = columnas_equipos[:-1]
 
@@ -136,6 +151,10 @@ def _importar_formato_ancho(df, jornada):
         if pd.isna(nombre_jugador) or not str(nombre_jugador).strip():
             continue
         nombre_jugador = str(nombre_jugador).strip()
+
+        campeon_val = fila[col_campeon]
+        if not pd.isna(campeon_val) and str(campeon_val).strip():
+            _guardar_prediccion_campeon(nombre_jugador, str(campeon_val).strip())
 
         for eq_local, eq_visitante in pares:
             valor_local = fila[eq_local]
@@ -345,6 +364,15 @@ def crear_app():
         jugadores = Jugador.query.order_by(Jugador.nombre).all()
         jornadas = sorted({p.jornada for p in Partido.query.all()})
 
+        preds_campeon = {pc.jugador_id: pc for pc in PrediccionCampeon.query.all()}
+        cfg = ConfigApp.query.filter_by(clave="campeon_real").first()
+        campeon_real = cfg.valor if cfg else None
+
+        # Desglose de picks del campeón
+        from collections import Counter
+        picks_count = Counter(pc.equipo for pc in preds_campeon.values())
+        picks_ranking = picks_count.most_common()
+
         player_stats = []
         for j in jugadores:
             pts_por_jornada = {}
@@ -364,10 +392,12 @@ def crear_app():
             pct = round((exactos + result1) / n_cal * 100) if n_cal else 0
             promedio = round(j.puntos_totales / n_cal, 2) if n_cal else 0
             mejor_jn = max(pts_por_jornada, key=pts_por_jornada.get) if pts_por_jornada else None
+            pc = preds_campeon.get(j.id)
+            pts_total = j.puntos_totales + ((pc.puntos or 0) if pc else 0)
 
             player_stats.append({
                 "jugador": j,
-                "puntos": j.puntos_totales,
+                "puntos": pts_total,
                 "exactos": exactos,
                 "resultado": result1,
                 "total_preds": total,
@@ -376,6 +406,7 @@ def crear_app():
                 "promedio": promedio,
                 "pts_por_jornada": pts_por_jornada,
                 "mejor_jornada": mejor_jn,
+                "pred_campeon": pc,
             })
 
         player_stats.sort(key=lambda x: x["puntos"], reverse=True)
@@ -406,6 +437,8 @@ def crear_app():
             jornadas=jornadas,
             mas_dificiles=mas_dificiles,
             mas_faciles=mas_faciles,
+            campeon_real=campeon_real,
+            picks_ranking=picks_ranking,
         )
 
     @app.route("/")
@@ -419,13 +452,21 @@ def crear_app():
             for jn in jornadas
         }
 
+        preds_campeon = {pc.jugador_id: pc for pc in PrediccionCampeon.query.all()}
+        cfg = ConfigApp.query.filter_by(clave="campeon_real").first()
+        campeon_real = cfg.valor if cfg else None
+
         stats = {}
         for j in jugadores:
             preds = j.predicciones
             if jornada_sel is not None:
                 preds = [p for p in preds if p.partido.jornada == jornada_sel]
+            pts = sum(p.puntos or 0 for p in preds)
+            if jornada_sel is None:
+                pc = preds_campeon.get(j.id)
+                pts += (pc.puntos or 0) if pc else 0
             stats[j.id] = {
-                "puntos": sum(p.puntos or 0 for p in preds),
+                "puntos": pts,
                 "exactos": sum(1 for p in preds if p.puntos == 3),
                 "resultado": sum(1 for p in preds if p.puntos == 1),
             }
@@ -433,7 +474,26 @@ def crear_app():
         tabla = sorted(jugadores, key=lambda j: stats[j.id]["puntos"], reverse=True)
         return render_template("index.html", tabla=tabla, jornadas=jornadas,
                                partidos_por_jornada=partidos_por_jornada,
-                               jornada_sel=jornada_sel, stats=stats)
+                               jornada_sel=jornada_sel, stats=stats,
+                               preds_campeon=preds_campeon, campeon_real=campeon_real)
+
+    @app.route("/campeon", methods=["POST"])
+    def set_campeon():
+        equipo = request.form.get("campeon_real", "").strip()
+        if not equipo:
+            flash("Indica el nombre del equipo campeón.", "error")
+            return redirect(url_for("index"))
+        cfg = ConfigApp.query.filter_by(clave="campeon_real").first()
+        if cfg:
+            cfg.valor = equipo
+        else:
+            db.session.add(ConfigApp(clave="campeon_real", valor=equipo))
+        for pc in PrediccionCampeon.query.all():
+            pc.puntos = 5 if football_api.equipos_coinciden(pc.equipo, equipo) else 0
+        db.session.commit()
+        ganadores = sum(1 for pc in PrediccionCampeon.query.all() if pc.puntos == 5)
+        flash(f"Campeón establecido: {equipo}. {ganadores} jugador(es) con 5 pts extra.", "success")
+        return redirect(url_for("index"))
 
     @app.route("/jornada/<int:jornada>")
     def ver_jornada(jornada):

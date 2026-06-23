@@ -8,6 +8,31 @@
   <p class="text-muted">Todavía no hay datos suficientes para mostrar análisis.</p>
 {% else %}
 
+{# ── PICKS DEL CAMPEÓN ── #}
+{% if picks_ranking %}
+<div class="card mb-4 border-warning">
+  <div class="card-header bg-warning bg-opacity-25 fw-semibold">
+    🏆 Predicciones del campeón
+    {% if campeon_real %}
+      <span class="badge bg-success ms-2">Campeón: {{ campeon_real }}</span>
+    {% else %}
+      <span class="text-muted fw-normal small ms-2">— pendiente de confirmar</span>
+    {% endif %}
+  </div>
+  <div class="card-body py-2">
+    <div class="d-flex flex-wrap gap-2">
+      {% for equipo, cantidad in picks_ranking %}
+        {% if campeon_real and equipo | lower == campeon_real | lower %}
+          <span class="badge bg-success fs-6 px-3 py-2">⭐ {{ equipo }} <span class="opacity-75">({{ cantidad }})</span></span>
+        {% else %}
+          <span class="badge bg-secondary fs-6 px-3 py-2">{{ equipo }} <span class="opacity-75">({{ cantidad }})</span></span>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
 {# ── TARJETAS RESUMEN ── #}
 {% set lider = player_stats[0] %}
 {% set ultimo = player_stats[-1] %}

@@ -4,9 +4,27 @@
 
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h2 class="mb-0">Tabla de posiciones</h2>
-  <form method="post" action="{{ url_for('sync_calendario') }}">
-    <button class="btn btn-outline-secondary btn-sm" type="submit">↻ Sincronizar calendario del Mundial</button>
-  </form>
+  <div class="d-flex gap-2 flex-wrap">
+    <button class="btn btn-outline-warning btn-sm" type="button"
+            data-bs-toggle="collapse" data-bs-target="#form-campeon">
+      🏆 {{ campeon_real if campeon_real else 'Establecer campeón' }}
+    </button>
+    <form method="post" action="{{ url_for('sync_calendario') }}">
+      <button class="btn btn-outline-secondary btn-sm" type="submit">↻ Sincronizar calendario</button>
+    </form>
+  </div>
+</div>
+
+{# Form para establecer el campeón real #}
+<div class="collapse mb-3" id="form-campeon">
+  <div class="card card-body border-warning bg-warning bg-opacity-10">
+    <p class="fw-semibold mb-2">🏆 Establecer campeón real <span class="text-muted fw-normal small">(otorga 5 pts a quien lo predijo)</span></p>
+    <form method="post" action="{{ url_for('set_campeon') }}" class="d-flex gap-2 align-items-center flex-wrap">
+      <input type="text" name="campeon_real" class="form-control form-control-sm"
+             placeholder="Nombre del equipo" value="{{ campeon_real or '' }}" style="max-width:220px" required>
+      <button type="submit" class="btn btn-warning btn-sm">✓ Confirmar</button>
+    </form>
+  </div>
 </div>
 
 {# Tabs de filtro por jornada #}
@@ -29,7 +47,7 @@
 {% endif %}
 
 {% if jornada_sel is not none %}
-  <p class="text-muted small">Mostrando puntos de <strong>{{ FASES_MUNDIAL.get(jornada_sel, 'Jornada ' ~ jornada_sel) }}</strong> únicamente.</p>
+  <p class="text-muted small">Mostrando puntos de <strong>{{ FASES_MUNDIAL.get(jornada_sel, 'Jornada ' ~ jornada_sel) }}</strong> únicamente. Los 5 pts del campeón se muestran solo en la vista General.</p>
 {% endif %}
 
 {% if not tabla %}
@@ -37,22 +55,42 @@
     <a href="{{ url_for('jugadores') }}">agregar a los participantes</a> y
     <a href="{{ url_for('upload') }}">subir las predicciones</a>.</p>
 {% else %}
+<div class="table-responsive">
 <table class="table table-striped align-middle">
   <thead>
     <tr>
       <th>#</th>
       <th>Jugador</th>
-      <th class="text-center">Marcadores exactos (3 pts)</th>
-      <th class="text-center">Resultados acertados (1 pt)</th>
+      {% if not jornada_sel %}
+      <th class="text-center">🏆 Campeón</th>
+      {% endif %}
+      <th class="text-center">Exactos (3 pts)</th>
+      <th class="text-center">Resultado (1 pt)</th>
       <th class="text-center">Puntos totales</th>
     </tr>
   </thead>
   <tbody>
     {% for j in tabla %}
     {% set s = stats[j.id] %}
+    {% set pc = preds_campeon.get(j.id) if preds_campeon else none %}
     <tr>
       <td>{{ loop.index }}</td>
       <td><a href="{{ url_for('detalle_jugador', jugador_id=j.id) }}">{{ j.nombre }}</a></td>
+      {% if not jornada_sel %}
+      <td class="text-center">
+        {% if pc %}
+          {% if campeon_real and pc.puntos == 5 %}
+            <span class="badge bg-success">⭐ {{ pc.equipo }}</span>
+          {% elif campeon_real and pc.puntos == 0 %}
+            <span class="text-muted small">{{ pc.equipo }}</span>
+          {% else %}
+            <span class="badge bg-secondary">{{ pc.equipo }}</span>
+          {% endif %}
+        {% else %}
+          <span class="text-muted">—</span>
+        {% endif %}
+      </td>
+      {% endif %}
       <td class="text-center">{{ s.exactos }}</td>
       <td class="text-center">{{ s.resultado }}</td>
       <td class="text-center fw-bold">{{ s.puntos }}</td>
@@ -60,6 +98,7 @@
     {% endfor %}
   </tbody>
 </table>
+</div>
 {% endif %}
 
 {% if not jornada_sel %}

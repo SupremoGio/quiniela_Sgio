@@ -80,6 +80,27 @@ class Partido(db.Model):
         return f"<Partido J{self.jornada}: {self.equipo_local} vs {self.equipo_visitante}>"
 
 
+class PrediccionCampeon(db.Model):
+    __tablename__ = "predicciones_campeon"
+
+    id = db.Column(db.Integer, primary_key=True)
+    jugador_id = db.Column(db.Integer, db.ForeignKey("jugadores.id"), nullable=False, unique=True)
+    equipo = db.Column(db.String(80), nullable=False)
+    puntos = db.Column(db.Integer, nullable=True)  # 5 si acertó, 0 si no, None si aún no se sabe
+
+    jugador = db.relationship("Jugador", backref=db.backref("prediccion_campeon", uselist=False))
+
+    def __repr__(self):
+        return f"<PrediccionCampeon {self.jugador_id}: {self.equipo}>"
+
+
+class ConfigApp(db.Model):
+    __tablename__ = "config_app"
+
+    clave = db.Column(db.String(80), primary_key=True)
+    valor = db.Column(db.String(200), nullable=True)
+
+
 class Prediccion(db.Model):
     __tablename__ = "predicciones"
 
