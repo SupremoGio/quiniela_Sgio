@@ -17,6 +17,7 @@ class Jugador(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(120), unique=True, nullable=False)
+    pais = db.Column(db.String(2), nullable=True)  # ISO-3166-1 alpha-2 (ej. "MX")
     creado_en = db.Column(db.DateTime, default=datetime.utcnow)
 
     predicciones = db.relationship(

@@ -194,6 +194,17 @@ def crear_app():
     db.init_app(app)
     with app.app_context():
         db.create_all()
+        # Migración: agrega columnas nuevas si no existen (compatible SQLite + PG)
+        with db.engine.connect() as conn:
+            for ddl in [
+                "ALTER TABLE jugadores ADD COLUMN pais VARCHAR(2)",
+                "ALTER TABLE predicciones_campeon ADD COLUMN puntos INTEGER",
+            ]:
+                try:
+                    conn.execute(db.text(ddl))
+                    conn.commit()
+                except Exception:
+                    pass
 
     _GDL = ZoneInfo("America/Mexico_City")
 
@@ -656,18 +667,28 @@ def crear_app():
     def jugadores():
         if request.method == "POST":
             nombre = request.form.get("nombre", "").strip()
+            pais_raw = request.form.get("pais", "").strip().upper()
+            pais = pais_raw[:2] if len(pais_raw) == 2 else None
             if nombre:
                 existe = _buscar_jugador_insensible(nombre)
                 if existe:
                     flash("Ese jugador ya existe.", "error")
                 else:
-                    db.session.add(Jugador(nombre=nombre))
+                    db.session.add(Jugador(nombre=nombre, pais=pais))
                     db.session.commit()
                     flash(f"Jugador '{nombre}' agregado.", "success")
             return redirect(url_for("jugadores"))
 
         lista = Jugador.query.order_by(Jugador.nombre).all()
         return render_template("jugadores.html", jugadores=lista)
+
+    @app.route("/jugadores/<int:jugador_id>/pais", methods=["POST"])
+    def set_pais_jugador(jugador_id):
+        jugador = Jugador.query.get_or_404(jugador_id)
+        pais_raw = request.form.get("pais", "").strip().upper()
+        jugador.pais = pais_raw[:2] if len(pais_raw) == 2 else None
+        db.session.commit()
+        return redirect(url_for("jugadores"))
 
     @app.route("/jugadores/<int:jugador_id>/fusionar", methods=["POST"])
     def fusionar_jugador(jugador_id):
@@ -712,7 +733,19 @@ def crear_app():
             .order_by(Partido.jornada, Partido.fecha)
             .all()
         )
-        return render_template("jugador_detalle.html", jugador=jugador, predicciones=predicciones)
+        # Ranking del jugador entre todos
+        todos = sorted(Jugador.query.all(), key=lambda j: j.puntos_totales, reverse=True)
+        ranking = next((i + 1 for i, j in enumerate(todos) if j.id == jugador_id), None)
+        total_jugadores = len(todos)
+        pc = PrediccionCampeon.query.filter_by(jugador_id=jugador_id).first()
+        return render_template(
+            "jugador_detalle.html",
+            jugador=jugador,
+            predicciones=predicciones,
+            ranking=ranking,
+            total_jugadores=total_jugadores,
+            pred_campeon=pc,
+        )
 
     return app
 

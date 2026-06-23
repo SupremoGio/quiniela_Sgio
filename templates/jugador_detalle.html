@@ -1,36 +1,123 @@
 {% extends "base.html" %}
-{% block title %}{{ jugador.nombre }} — detalle{% endblock %}
+{% block title %}{{ jugador.nombre }} — Quiniela Mundial 2026{% endblock %}
 {% block content %}
 
-<h2>{{ jugador.nombre }}</h2>
-<p class="lead">Puntos totales: <strong>{{ jugador.puntos_totales }}</strong>
-  &nbsp;·&nbsp; Marcadores exactos: {{ jugador.aciertos_exactos }}
-  &nbsp;·&nbsp; Resultados acertados: {{ jugador.aciertos_resultado }}
-</p>
+<a href="{{ url_for('jugadores') }}"
+   style="display:inline-flex;align-items:center;gap:7px;background:transparent;border:none;
+          color:var(--sub);font-family:var(--font-body);font-weight:600;font-size:14px;
+          text-decoration:none;margin-bottom:16px;">
+  ← Volver a jugadores
+</a>
 
-<table class="table table-striped">
-  <thead>
-    <tr><th>Jornada</th><th>Partido</th><th class="text-center">Predicción</th><th class="text-center">Real</th><th class="text-center">Puntos</th></tr>
-  </thead>
-  <tbody>
-    {% for pred in predicciones %}
-    <tr>
-      <td>{{ pred.partido.jornada }}</td>
-      <td>{{ pred.partido.equipo_local }} vs {{ pred.partido.equipo_visitante }}</td>
-      <td class="text-center">{{ pred.pred_local }} - {{ pred.pred_visitante }}</td>
-      <td class="text-center">
-        {% if pred.partido.finalizado %}{{ pred.partido.marcador_local }} - {{ pred.partido.marcador_visitante }}{% else %}<span class="text-muted">pendiente</span>{% endif %}
-      </td>
-      <td class="text-center">
-        {% if pred.puntos is not none %}
-          <span class="badge {{ 'bg-success' if pred.puntos == 3 else ('bg-warning text-dark' if pred.puntos == 1 else 'bg-light text-dark') }}">{{ pred.puntos }}</span>
-        {% else %}—{% endif %}
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+{# ── HERO ── #}
+<section class="detail-hero rise">
+  <div class="avatar"
+       style="width:clamp(64px,16vw,88px);height:clamp(64px,16vw,88px);
+              font-size:clamp(26px,7vw,40px);font-weight:700;
+              background:{{ avatar_color(jugador) }};
+              box-shadow:0 0 0 3px {{ avatar_color(jugador) }},0 8px 22px rgba(0,0,0,.14);
+              flex:none;">
+    {{ inicial(jugador) }}
+  </div>
+  <div style="min-width:0;">
+    <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;">
+      <h1 class="q-h1">{{ jugador.nombre }}</h1>
+      {% if jugador.pais %}
+        <span style="font-size:clamp(20px,5vw,26px);">{{ bandera_emoji(jugador.pais) }}</span>
+      {% endif %}
+    </div>
+    <p class="q-sub">
+      Puesto <strong style="color:var(--ink);">#{{ ranking }}</strong> de {{ total_jugadores }}
+      &nbsp;·&nbsp;
+      <strong style="color:var(--ink);">{{ jugador.puntos_totales }} pts</strong> en total
+      {% if pred_campeon %}
+        &nbsp;·&nbsp; 🏆 {{ pred_campeon.equipo }}
+        {% if pred_campeon.puntos == 5 %}<span style="color:var(--field);font-weight:700;"> ✓ +5 pts</span>{% endif %}
+      {% endif %}
+    </p>
+  </div>
+</section>
 
-<a class="btn btn-secondary" href="{{ url_for('index') }}">← Volver a la tabla</a>
+{# ── STAT CARDS ── #}
+<div class="stat-grid rise">
+  <div class="stat-card">
+    <b style="color:var(--field);">{{ jugador.aciertos_exactos }}</b>
+    <small>Marcadores exactos (3 pts)</small>
+  </div>
+  <div class="stat-card">
+    <b style="color:var(--gold);">{{ jugador.aciertos_resultado }}</b>
+    <small>Resultados acertados (1 pt)</small>
+  </div>
+  <div class="stat-card">
+    <b>{{ jugador.puntos_totales }}</b>
+    <small>Puntos totales</small>
+  </div>
+  {% set n_cal = predicciones | selectattr('puntos', 'ne', none) | list | length %}
+  {% set pct = ((jugador.aciertos_exactos + jugador.aciertos_resultado) / n_cal * 100) | round | int if n_cal else 0 %}
+  <div class="stat-card">
+    <b>{{ pct }}%</b>
+    <small>% de acierto</small>
+  </div>
+</div>
+
+{# ── TABLA DE PREDICCIONES ── #}
+<div class="panel rise" style="overflow-x:auto;">
+  <table style="width:100%;border-collapse:collapse;font-family:var(--font-body);font-size:14px;">
+    <thead>
+      <tr style="border-bottom:2px solid var(--line);">
+        <th style="text-align:left;padding:8px 10px;font-family:var(--font-head);font-size:11px;
+                   letter-spacing:.06em;text-transform:uppercase;color:var(--sub);font-weight:600;">Fase</th>
+        <th style="text-align:left;padding:8px 10px;font-family:var(--font-head);font-size:11px;
+                   letter-spacing:.06em;text-transform:uppercase;color:var(--sub);font-weight:600;">Partido</th>
+        <th style="text-align:center;padding:8px 6px;font-family:var(--font-head);font-size:11px;
+                   letter-spacing:.06em;text-transform:uppercase;color:var(--sub);font-weight:600;">Predicción</th>
+        <th style="text-align:center;padding:8px 6px;font-family:var(--font-head);font-size:11px;
+                   letter-spacing:.06em;text-transform:uppercase;color:var(--sub);font-weight:600;">Real</th>
+        <th style="text-align:center;padding:8px 6px;font-family:var(--font-head);font-size:11px;
+                   letter-spacing:.06em;text-transform:uppercase;color:var(--sub);font-weight:600;">Pts</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for pred in predicciones %}
+      {% set pts = pred.puntos %}
+      <tr style="border-bottom:1px solid var(--line);
+                 background:{% if pts == 3 %}color-mix(in srgb,var(--field) 8%,transparent)
+                            {% elif pts == 1 %}color-mix(in srgb,var(--gold) 10%,transparent)
+                            {% else %}transparent{% endif %};">
+        <td style="padding:9px 10px;color:var(--sub);font-size:12px;">
+          {{ FASES_CORTAS.get(pred.partido.jornada, 'J' ~ pred.partido.jornada) }}
+        </td>
+        <td style="padding:9px 10px;font-weight:600;">
+          {{ pred.partido.equipo_local }} <span style="color:var(--sub);font-weight:400;">vs</span> {{ pred.partido.equipo_visitante }}
+        </td>
+        <td style="padding:9px 6px;text-align:center;font-family:var(--font-head);font-weight:600;font-size:15px;">
+          {{ pred.pred_local }} – {{ pred.pred_visitante }}
+        </td>
+        <td style="padding:9px 6px;text-align:center;font-family:var(--font-head);font-size:15px;color:var(--sub);">
+          {% if pred.partido.finalizado %}
+            {{ pred.partido.marcador_local }} – {{ pred.partido.marcador_visitante }}
+          {% else %}—{% endif %}
+        </td>
+        <td style="padding:9px 6px;text-align:center;">
+          {% if pts is not none %}
+            <span style="display:inline-flex;align-items:center;justify-content:center;
+                         min-width:26px;padding:3px 7px;border-radius:8px;
+                         font-family:var(--font-head);font-weight:600;font-size:13px;
+                         {% if pts == 3 %}color:var(--field);background:color-mix(in srgb,var(--field) 15%,transparent);
+                         {% elif pts == 1 %}color:var(--gold);background:color-mix(in srgb,var(--gold) 18%,transparent);
+                         {% else %}color:var(--sub);background:var(--chip);{% endif %}">
+              {{ pts }}
+            </span>
+          {% else %}
+            <span style="color:var(--sub);">—</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" style="padding:20px;text-align:center;color:var(--sub);">Sin predicciones cargadas.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 
 {% endblock %}

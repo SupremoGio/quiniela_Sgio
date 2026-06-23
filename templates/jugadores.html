@@ -1,46 +1,112 @@
 {% extends "base.html" %}
-{% block title %}Jugadores{% endblock %}
+{% block title %}Jugadores — Quiniela Mundial 2026{% endblock %}
 {% block content %}
 
-<h2>Participantes</h2>
-
-<form method="post" class="row g-2 mb-4">
-  <div class="col-auto">
-    <input class="form-control" type="text" name="nombre" placeholder="Nombre del participante" required>
+<div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:clamp(14px,2.6vw,20px);">
+  <div>
+    <h1 class="q-h1">Jugadores</h1>
+    <p class="q-sub">{{ jugadores|length }} participantes · toca una tarjeta para ver el detalle</p>
   </div>
-  <div class="col-auto">
-    <button class="btn btn-primary" type="submit">Agregar</button>
-  </div>
-</form>
 
-<ul class="list-group">
+  {# Botón que abre el form de agregar #}
+  <button class="btn-ghost ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#form-agregar"
+          style="margin-left:auto;">
+    <span style="color:var(--field);font-size:16px;">+</span> Agregar
+  </button>
+</div>
+
+{# Form agregar jugador #}
+<div class="collapse mb-4" id="form-agregar">
+  <div class="panel" style="max-width:440px;">
+    <p class="q-section-title" style="margin-bottom:12px;">Nuevo participante</p>
+    <form method="post" class="d-flex flex-column gap-3">
+      <div>
+        <label style="font-family:var(--font-body);font-size:13px;font-weight:600;color:var(--sub);margin-bottom:4px;display:block;">Nombre</label>
+        <input class="form-control" type="text" name="nombre" placeholder="Ej. Alejandra" required>
+      </div>
+      <div>
+        <label style="font-family:var(--font-body);font-size:13px;font-weight:600;color:var(--sub);margin-bottom:4px;display:block;">
+          País <span style="font-weight:400;">(código ISO-2, ej. MX · ES · AR)</span>
+        </label>
+        <input class="form-control" type="text" name="pais" maxlength="2" placeholder="MX" style="max-width:80px;text-transform:uppercase;">
+      </div>
+      <div>
+        <button class="btn-accent" type="submit">Agregar jugador</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# Grid de tarjetas #}
+{% if not jugadores %}
+  <p style="color:var(--sub);font-family:var(--font-body);">Aún no hay participantes.</p>
+{% else %}
+<div class="player-grid">
   {% for j in jugadores %}
-  <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
-    <a href="{{ url_for('detalle_jugador', jugador_id=j.id) }}">{{ j.nombre }}</a>
-    <div class="d-flex gap-2 align-items-center flex-wrap">
+  <div class="player-card" style="position:relative;">
+    <div class="player-card__top">
+      <div class="avatar" style="width:44px;height:44px;font-size:18px;font-weight:700;background:{{ avatar_color(j) }};">
+        {{ inicial(j) }}
+      </div>
+      {# Bandera + input inline de país #}
+      <form method="post" action="{{ url_for('set_pais_jugador', jugador_id=j.id) }}"
+            style="display:flex;align-items:center;gap:4px;">
+        <span style="font-size:18px;" title="{{ j.pais or 'sin país' }}">{{ bandera_emoji(j.pais) if j.pais else '🌍' }}</span>
+        <input type="text" name="pais" maxlength="2"
+               value="{{ j.pais or '' }}"
+               placeholder="MX"
+               title="Código ISO-2 del país"
+               style="width:36px;font-size:11px;font-family:var(--font-body);font-weight:600;
+                      background:var(--chip);border:1px solid var(--line);border-radius:6px;
+                      padding:2px 4px;color:var(--ink);text-transform:uppercase;text-align:center;">
+        <button type="submit" title="Guardar país"
+                style="background:none;border:none;padding:0;cursor:pointer;color:var(--sub);font-size:11px;">✓</button>
+      </form>
+    </div>
+
+    <div style="min-width:0;">
+      <a href="{{ url_for('detalle_jugador', jugador_id=j.id) }}"
+         style="font-family:var(--font-body);font-weight:700;font-size:15px;
+                color:var(--ink);text-decoration:none;white-space:nowrap;
+                overflow:hidden;text-overflow:ellipsis;display:block;">
+        {{ j.nombre }}
+      </a>
+    </div>
+
+    <div style="display:flex;align-items:baseline;gap:5px;">
+      <span class="player-card__pts">{{ j.puntos_totales }}</span>
+      <span style="font-family:var(--font-body);font-size:10px;letter-spacing:.1em;color:var(--sub);font-weight:600;">PTS</span>
+    </div>
+
+    <div style="display:flex;gap:6px;">
+      <span class="chip-stat exact" style="flex:1;text-align:center;font-size:11px;">{{ j.aciertos_exactos }} exactos</span>
+      <span class="chip-stat result" style="flex:1;text-align:center;font-size:11px;">{{ j.aciertos_resultado }} result.</span>
+    </div>
+
+    {# Acciones: fusionar / eliminar (colapsables) #}
+    <div style="border-top:1px solid var(--line);padding-top:10px;margin-top:4px;display:flex;flex-direction:column;gap:6px;">
       <form method="post" action="{{ url_for('fusionar_jugador', jugador_id=j.id) }}"
-            onsubmit="return confirm('¿Fusionar a {{ j.nombre }} con el jugador seleccionado? Se moverán todas sus predicciones y se eliminará {{ j.nombre }}.');">
-        <div class="input-group input-group-sm">
-          <select name="jugador_destino_id" class="form-select form-select-sm" required>
-            <option value="" disabled selected>Fusionar con…</option>
-            {% for otro in jugadores %}
-              {% if otro.id != j.id %}
-                <option value="{{ otro.id }}">{{ otro.nombre }}</option>
-              {% endif %}
-            {% endfor %}
-          </select>
-          <button class="btn btn-warning btn-sm" type="submit">→</button>
-        </div>
+            onsubmit="return confirm('¿Fusionar a {{ j.nombre }} con el jugador seleccionado?');"
+            class="d-flex gap-1">
+        <select name="jugador_destino_id" class="form-select form-select-sm" required
+                style="font-size:11px;padding:3px 6px;">
+          <option value="" disabled selected>Fusionar con…</option>
+          {% for otro in jugadores %}
+            {% if otro.id != j.id %}
+              <option value="{{ otro.id }}">{{ otro.nombre }}</option>
+            {% endif %}
+          {% endfor %}
+        </select>
+        <button class="btn btn-warning btn-sm" type="submit" title="Fusionar">→</button>
       </form>
       <form method="post" action="{{ url_for('eliminar_jugador', jugador_id=j.id) }}"
             onsubmit="return confirm('¿Eliminar a {{ j.nombre }} y todas sus predicciones?');">
-        <button class="btn btn-sm btn-outline-danger" type="submit">Eliminar</button>
+        <button class="btn btn-sm btn-outline-danger w-100" type="submit" style="font-size:11px;">Eliminar</button>
       </form>
     </div>
-  </li>
-  {% else %}
-  <li class="list-group-item text-muted">Todavía no hay participantes.</li>
+  </div>
   {% endfor %}
-</ul>
+</div>
+{% endif %}
 
 {% endblock %}
