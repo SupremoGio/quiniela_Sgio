@@ -207,6 +207,9 @@ def crear_app():
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 MB para el excel
 
+    motor = "postgresql" if db_url.startswith("postgresql://") else "sqlite (NO persistente)"
+    print(f"[quiniela] Conectando a base de datos: {motor}", flush=True)
+
     os.makedirs(app.instance_path, exist_ok=True)
     db.init_app(app)
     with app.app_context():
