@@ -721,9 +721,27 @@ def crear_app():
             if ya_existe is None:
                 pred.jugador_id = destino.id
                 movidas += 1
+            elif (pred.puntos or 0) > (ya_existe.puntos or 0):
+                # El origen acertó mejor ese partido: se queda la suya en vez
+                # de la del destino, para no perder puntos correctos al fusionar.
+                db.session.delete(ya_existe)
+                pred.jugador_id = destino.id
+                movidas += 1
             else:
                 db.session.delete(pred)
                 omitidas += 1
+
+        pc_origen = origen.prediccion_campeon
+        pc_destino = destino.prediccion_campeon
+        if pc_origen is not None:
+            if pc_destino is None:
+                pc_origen.jugador_id = destino.id
+            elif (pc_origen.puntos or 0) > (pc_destino.puntos or 0):
+                db.session.delete(pc_destino)
+                pc_origen.jugador_id = destino.id
+            else:
+                db.session.delete(pc_origen)
+
         db.session.flush()
         db.session.delete(origen)
         db.session.commit()
