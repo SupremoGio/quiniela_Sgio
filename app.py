@@ -17,6 +17,8 @@ Para correrlo localmente:
 import os
 import re
 from datetime import datetime
+from difflib import SequenceMatcher
+from itertools import combinations
 from zoneinfo import ZoneInfo
 
 import click
@@ -39,6 +41,21 @@ def _buscar_jugador_insensible(nombre_jugador):
         if j.nombre.strip().lower() == nombre_norm:
             return j
     return None
+
+
+def _posibles_duplicados(jugadores, umbral=0.6):
+    """Detecta pares de jugadores cuyo nombre es muy parecido (typos, alias)
+    usando similitud de cadenas, para sugerir una fusión sin tener que
+    detectarlos a ojo (ej. 'Don Toño' / 'Dontoño', 'Osvaldo' / 'Osvalo')."""
+    sugerencias = []
+    for a, b in combinations(jugadores, 2):
+        na = a.nombre.strip().lower().replace(" ", "")
+        nb = b.nombre.strip().lower().replace(" ", "")
+        ratio = SequenceMatcher(None, na, nb).ratio()
+        if ratio >= umbral:
+            sugerencias.append((a, b, ratio))
+    sugerencias.sort(key=lambda s: s[2], reverse=True)
+    return sugerencias
 
 
 def _guardar_prediccion_campeon(nombre_jugador, equipo):
@@ -680,7 +697,8 @@ def crear_app():
             return redirect(url_for("jugadores"))
 
         lista = Jugador.query.order_by(Jugador.nombre).all()
-        return render_template("jugadores.html", jugadores=lista)
+        sugerencias = _posibles_duplicados(lista)
+        return render_template("jugadores.html", jugadores=lista, sugerencias_fusion=sugerencias)
 
     @app.route("/jugadores/<int:jugador_id>/pais", methods=["POST"])
     def set_pais_jugador(jugador_id):
