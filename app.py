@@ -185,6 +185,23 @@ def crear_app():
         gdt = dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(_GDL)
         return gdt.strftime("%d %b %Y · %H:%M")
 
+    FASES_MUNDIAL = {
+        1: "Jornada 1",
+        2: "Jornada 2",
+        3: "Jornada 3",
+        4: "Dieciseisavos de Final",
+        5: "Octavos de Final",
+        6: "Cuartos de Final",
+        7: "Semifinales",
+        8: "Final",
+    }
+    FASES_CORTAS = {
+        1: "J1", 2: "J2", 3: "J3",
+        4: "16avos", 5: "8vos", 6: "4tos", 7: "SF", 8: "Final",
+    }
+    app.jinja_env.globals["FASES_MUNDIAL"] = FASES_MUNDIAL
+    app.jinja_env.globals["FASES_CORTAS"] = FASES_CORTAS
+
     # ---------- helpers internos ----------
     def _sincronizar_calendario():
         """Trae el calendario completo (104 partidos) desde la API y

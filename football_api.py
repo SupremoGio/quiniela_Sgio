@@ -22,6 +22,25 @@ import requests
 BASE_URL = "https://api.football-data.org/v4"
 COMPETITION_CODE = "WC"  # FIFA World Cup
 
+# Mapeo de stage de la API → número de jornada interno (4-8 para eliminatorias)
+_STAGE_A_JORNADA = {
+    "LAST_32": 4,        # Dieciseisavos de Final
+    "LAST_16": 5,        # Octavos de Final
+    "QUARTER_FINALS": 6, # Cuartos de Final
+    "SEMI_FINALS": 7,    # Semifinales
+    "THIRD_PLACE": 8,    # Tercer lugar
+    "FINAL": 8,          # Final
+}
+
+# Inverso: jornada interna → stage de la API (para filtrar llamadas)
+_JORNADA_A_STAGE = {
+    4: "LAST_32",
+    5: "LAST_16",
+    6: "QUARTER_FINALS",
+    7: "SEMI_FINALS",
+    # 8 necesita FINAL + THIRD_PLACE; se obtiene sin filtro
+}
+
 # Nombres alternativos (español u otros) → nombres que puede devolver la API (normalizados)
 _ALIAS_EQUIPO = {
     "chequia": ["czechia", "czech republic"],
@@ -189,7 +208,11 @@ def obtener_partidos(jornada=None, reintentos=3):
     """
     params = {}
     if jornada is not None:
-        params["matchday"] = jornada
+        if jornada <= 3:
+            params["matchday"] = jornada
+        elif jornada in _JORNADA_A_STAGE:
+            params["stage"] = _JORNADA_A_STAGE[jornada]
+        # jornada 8 (Final + Tercer lugar): sin filtro, se filtra localmente
 
     url = f"{BASE_URL}/competitions/{COMPETITION_CODE}/matches"
 
@@ -215,9 +238,13 @@ def extraer_resultado(partido_api):
     nos importan en un formato simple.
     """
     score = partido_api.get("score", {}).get("fullTime", {}) or {}
+    matchday = partido_api.get("matchday")
+    stage = (partido_api.get("stage") or "").upper()
+    # Para fase de grupos matchday viene como 1/2/3; para eliminatorias es None y usamos stage
+    jornada = matchday if matchday is not None else _STAGE_A_JORNADA.get(stage)
     return {
         "api_match_id": partido_api.get("id"),
-        "jornada": partido_api.get("matchday"),
+        "jornada": jornada,
         "fecha": partido_api.get("utcDate"),
         "estado": partido_api.get("status"),  # SCHEDULED, LIVE, IN_PLAY, FINISHED, ...
         "equipo_local": (partido_api.get("homeTeam") or {}).get("name"),

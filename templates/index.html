@@ -19,7 +19,7 @@
   {% for j in jornadas %}
   <a href="{{ url_for('index', jornada=j) }}"
      class="btn btn-sm {{ 'btn-primary' if jornada_sel == j else 'btn-outline-primary' }}">
-    Jornada {{ j }}
+    {{ FASES_MUNDIAL.get(j, 'Jornada ' ~ j) }}
     <span class="badge {{ 'bg-light text-dark' if jornada_sel == j else 'bg-secondary' }} ms-1">
       {{ partidos_por_jornada[j] }}
     </span>
@@ -29,7 +29,7 @@
 {% endif %}
 
 {% if jornada_sel is not none %}
-  <p class="text-muted small">Mostrando puntos de la <strong>Jornada {{ jornada_sel }}</strong> únicamente.</p>
+  <p class="text-muted small">Mostrando puntos de <strong>{{ FASES_MUNDIAL.get(jornada_sel, 'Jornada ' ~ jornada_sel) }}</strong> únicamente.</p>
 {% endif %}
 
 {% if not tabla %}
@@ -63,14 +63,14 @@
 {% endif %}
 
 {% if not jornada_sel %}
-<h5 class="mt-4">Jornadas</h5>
+<h5 class="mt-4">Fases del torneo</h5>
 {% if not jornadas %}
   <p class="text-muted">Aún no hay partidos cargados. Usa el botón de arriba para traer el calendario completo desde la API, o sube un excel de predicciones.</p>
 {% else %}
 <div class="d-flex flex-wrap gap-2">
   {% for j in jornadas %}
     <a class="btn btn-outline-primary" href="{{ url_for('ver_jornada', jornada=j) }}">
-      Jornada {{ j }}
+      {{ FASES_MUNDIAL.get(j, 'Jornada ' ~ j) }}
       <span class="badge bg-secondary ms-1">{{ partidos_por_jornada[j] }}</span>
     </a>
   {% endfor %}

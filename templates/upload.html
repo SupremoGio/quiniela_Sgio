@@ -15,27 +15,49 @@
 <table class="table table-sm table-bordered w-auto">
   <thead><tr><th>jornada</th><th>jugador</th><th>equipo_local</th><th>equipo_visitante</th><th>pred_local</th><th>pred_visitante</th></tr></thead>
   <tbody>
-    <tr><td>1</td><td>Gio</td><td>Mexico</td><td>Poland</td><td>2</td><td>1</td></tr>
-    <tr><td>1</td><td>Ana</td><td>Mexico</td><td>Poland</td><td>1</td><td>1</td></tr>
+    <tr><td>1</td><td>Gio</td><td>Mexico</td><td>Sudafrica</td><td>2</td><td>1</td></tr>
+    <tr><td>1</td><td>Ana</td><td>Mexico</td><td>Sudafrica</td><td>1</td><td>1</td></tr>
   </tbody>
 </table>
+<p class="text-muted small">
+  Para fases eliminatorias usa el número de fase: 4 = Dieciseisavos, 5 = Octavos,
+  6 = Cuartos, 7 = Semifinales, 8 = Final.
+</p>
 
 <h5>Formato ancho (por pares de equipos)</h5>
 <p class="text-muted">
   Una fila por jugador. La primera columna es el nombre, la segunda se ignora (ej. "Campeón"),
   y las siguientes columnas son los equipos en pares: cada dos columnas consecutivas forman un
   partido (equipo_local, equipo_visitante). El valor de cada celda es el marcador predicho para
-  ese equipo; usa <code>o</code> para 0 goles. Indica la jornada abajo, o nombra el archivo tipo
-  <code>JORNADA_2.xlsx</code> para que se detecte automáticamente.
+  ese equipo; usa <code>o</code> para 0 goles. Selecciona la fase en el desplegable de abajo.
 </p>
 
 <form method="post" enctype="multipart/form-data" class="mt-4">
   <div class="mb-3">
-    <label class="form-label">Jornada (solo necesario para el formato ancho, si el nombre del archivo no la indica)</label>
-    <input class="form-control w-auto" type="number" name="jornada" min="1" placeholder="ej. 2">
+    <label class="form-label fw-semibold">Fase del torneo</label>
+    <select class="form-select" style="max-width:360px" name="jornada">
+      <option value="">— selecciona una fase —</option>
+      <optgroup label="Fase de Grupos">
+        <option value="1">Jornada 1</option>
+        <option value="2">Jornada 2</option>
+        <option value="3">Jornada 3</option>
+      </optgroup>
+      <optgroup label="Eliminación Directa">
+        <option value="4">Dieciseisavos de Final</option>
+        <option value="5">Octavos de Final</option>
+        <option value="6">Cuartos de Final</option>
+        <option value="7">Semifinales</option>
+        <option value="8">Final (y 3er lugar)</option>
+      </optgroup>
+    </select>
+    <div class="form-text">
+      Solo necesario para el formato ancho. En el formato largo la columna
+      <code>jornada</code> del archivo determina la fase.
+    </div>
   </div>
   <div class="mb-3">
-    <input class="form-control" type="file" name="archivo" accept=".xlsx,.xls,.csv" required>
+    <label class="form-label fw-semibold">Archivo Excel o CSV</label>
+    <input class="form-control" style="max-width:360px" type="file" name="archivo" accept=".xlsx,.xls,.csv" required>
   </div>
   <button class="btn btn-primary" type="submit">Subir e importar</button>
 </form>

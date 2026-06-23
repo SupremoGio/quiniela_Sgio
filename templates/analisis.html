@@ -61,7 +61,7 @@
     <thead class="table-dark">
       <tr>
         <th class="text-start">Jugador</th>
-        {% for jn in jornadas %}<th>J{{ jn }}</th>{% endfor %}
+        {% for jn in jornadas %}<th title="{{ FASES_MUNDIAL.get(jn, 'Jornada ' ~ jn) }}">{{ FASES_CORTAS.get(jn, 'J' ~ jn) }}</th>{% endfor %}
         <th>Total</th>
       </tr>
     </thead>
