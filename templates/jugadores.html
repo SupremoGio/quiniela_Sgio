@@ -83,22 +83,8 @@
       <span class="chip-stat result" style="flex:1;text-align:center;font-size:11px;">{{ j.aciertos_resultado }} result.</span>
     </div>
 
-    {# Acciones: fusionar / eliminar (colapsables) #}
+    {# Acciones: eliminar #}
     <div style="border-top:1px solid var(--line);padding-top:10px;margin-top:4px;display:flex;flex-direction:column;gap:6px;">
-      <form method="post" action="{{ url_for('fusionar_jugador', jugador_id=j.id) }}"
-            onsubmit="return confirm('¿Fusionar a {{ j.nombre }} con el jugador seleccionado?');"
-            class="d-flex gap-1">
-        <select name="jugador_destino_id" class="form-select form-select-sm" required
-                style="font-size:11px;padding:3px 6px;">
-          <option value="" disabled selected>Fusionar con…</option>
-          {% for otro in jugadores %}
-            {% if otro.id != j.id %}
-              <option value="{{ otro.id }}">{{ otro.nombre }}</option>
-            {% endif %}
-          {% endfor %}
-        </select>
-        <button class="btn btn-warning btn-sm" type="submit" title="Fusionar">→</button>
-      </form>
       <form method="post" action="{{ url_for('eliminar_jugador', jugador_id=j.id) }}"
             onsubmit="return confirm('¿Eliminar a {{ j.nombre }} y todas sus predicciones?');">
         <button class="btn btn-sm btn-outline-danger w-100" type="submit" style="font-size:11px;">Eliminar</button>

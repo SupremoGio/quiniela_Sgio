@@ -693,50 +693,6 @@ def crear_app():
         db.session.commit()
         return redirect(url_for("jugadores"))
 
-    @app.route("/jugadores/<int:jugador_id>/fusionar", methods=["POST"])
-    def fusionar_jugador(jugador_id):
-        origen = Jugador.query.get_or_404(jugador_id)
-        destino_id = request.form.get("jugador_destino_id", type=int)
-        destino = Jugador.query.get_or_404(destino_id)
-        movidas, omitidas = 0, 0
-        for pred in list(origen.predicciones):
-            ya_existe = Prediccion.query.filter_by(
-                jugador_id=destino.id, partido_id=pred.partido_id
-            ).first()
-            if ya_existe is None:
-                pred.jugador_id = destino.id
-                movidas += 1
-            elif (pred.puntos or 0) > (ya_existe.puntos or 0):
-                # El origen acertó mejor ese partido: se queda la suya en vez
-                # de la del destino, para no perder puntos correctos al fusionar.
-                db.session.delete(ya_existe)
-                pred.jugador_id = destino.id
-                movidas += 1
-            else:
-                db.session.delete(pred)
-                omitidas += 1
-
-        pc_origen = origen.prediccion_campeon
-        pc_destino = destino.prediccion_campeon
-        if pc_origen is not None:
-            if pc_destino is None:
-                pc_origen.jugador_id = destino.id
-            elif (pc_origen.puntos or 0) > (pc_destino.puntos or 0):
-                db.session.delete(pc_destino)
-                pc_origen.jugador_id = destino.id
-            else:
-                db.session.delete(pc_origen)
-
-        db.session.flush()
-        db.session.delete(origen)
-        db.session.commit()
-        flash(
-            f"'{origen.nombre}' fusionado con '{destino.nombre}': "
-            f"{movidas} predicción(es) movidas, {omitidas} omitida(s) por duplicado.",
-            "success",
-        )
-        return redirect(url_for("jugadores"))
-
     @app.route("/jugadores/<int:jugador_id>/eliminar", methods=["POST"])
     def eliminar_jugador(jugador_id):
         jugador = Jugador.query.get_or_404(jugador_id)
