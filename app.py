@@ -14,6 +14,7 @@ Para correrlo localmente:
     flask --app app init-db
     flask --app app run --debug
 """
+import hmac
 import os
 import re
 from datetime import datetime
@@ -23,12 +24,38 @@ import click
 import pandas as pd
 from dotenv import load_dotenv
 from flask import Flask, flash, redirect, render_template, request, url_for
+from flask_login import (
+    LoginManager,
+    UserMixin,
+    current_user,
+    login_required,
+    login_user,
+    logout_user,
+)
 
 import football_api
 from models import ConfigApp, Jugador, Partido, Prediccion, PrediccionCampeon, db
 from scoring import calcular_puntos
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+
+
+class Admin(UserMixin):
+    """Único usuario administrador, definido por variables de entorno
+    (no hay tabla de usuarios: este proyecto solo necesita una cuenta)."""
+
+    id = "admin"
+
+    def __init__(self, username):
+        self.username = username
+
+
+def _admin_credenciales_validas(username, password):
+    admin_user = os.environ.get("ADMIN_USERNAME", "admin")
+    admin_pass = os.environ.get("ADMIN_PASSWORD", "")
+    if not admin_pass:
+        return False
+    return hmac.compare_digest(username, admin_user) and hmac.compare_digest(password, admin_pass)
 
 
 def _buscar_jugador_insensible(nombre_jugador):
@@ -195,6 +222,18 @@ def crear_app():
 
     os.makedirs(app.instance_path, exist_ok=True)
     db.init_app(app)
+
+    login_manager = LoginManager()
+    login_manager.login_view = "login"
+    login_manager.login_message = "Inicia sesión para acceder a esa sección."
+    login_manager.init_app(app)
+
+    @login_manager.user_loader
+    def load_user(user_id):
+        if user_id == Admin.id:
+            return Admin(os.environ.get("ADMIN_USERNAME", "admin"))
+        return None
+
     with app.app_context():
         db.create_all()
         # Migración: agrega columnas nuevas si no existen (compatible SQLite + PG)
@@ -393,6 +432,26 @@ def crear_app():
         partidos_act, preds_calif = _sincronizar_resultados(jornada=jornada)
         print(f"{partidos_act} partido(s) actualizados, {preds_calif} predicción(es) calificadas.")
 
+    # ---------- autenticación ----------
+    @app.route("/login", methods=["GET", "POST"])
+    def login():
+        if current_user.is_authenticated:
+            return redirect(url_for("index"))
+        if request.method == "POST":
+            username = request.form.get("username", "").strip()
+            password = request.form.get("password", "")
+            if _admin_credenciales_validas(username, password):
+                login_user(Admin(username))
+                return redirect(request.args.get("next") or url_for("index"))
+            flash("Usuario o contraseña incorrectos.", "error")
+        return render_template("login.html")
+
+    @app.route("/logout", methods=["POST"])
+    @login_required
+    def logout():
+        logout_user()
+        return redirect(url_for("index"))
+
     # ---------- rutas ----------
     @app.route("/analisis")
     def analisis():
@@ -513,6 +572,7 @@ def crear_app():
                                preds_campeon=preds_campeon, campeon_real=campeon_real)
 
     @app.route("/campeon", methods=["POST"])
+    @login_required
     def set_campeon():
         equipo = request.form.get("campeon_real", "").strip()
         if not equipo:
@@ -552,6 +612,7 @@ def crear_app():
         )
 
     @app.route("/sync/<int:jornada>", methods=["POST"])
+    @login_required
     def sync_jornada(jornada):
         try:
             partidos_act, preds_calif = _sincronizar_resultados(jornada=jornada)
@@ -565,6 +626,7 @@ def crear_app():
         return redirect(url_for("ver_jornada", jornada=jornada))
 
     @app.route("/partido/<int:partido_id>/resultado", methods=["POST"])
+    @login_required
     def set_resultado(partido_id):
         partido = Partido.query.get_or_404(partido_id)
         try:
@@ -583,6 +645,7 @@ def crear_app():
         return redirect(url_for("ver_jornada", jornada=partido.jornada))
 
     @app.route("/jornada/<int:jornada>/eliminar", methods=["POST"])
+    @login_required
     def eliminar_jornada(jornada):
         partidos = Partido.query.filter_by(jornada=jornada).all()
         cantidad = len(partidos)
@@ -593,6 +656,7 @@ def crear_app():
         return redirect(url_for("index"))
 
     @app.route("/sync-calendario", methods=["POST"])
+    @login_required
     def sync_calendario():
         try:
             creados, actualizados = _sincronizar_calendario()
@@ -602,6 +666,7 @@ def crear_app():
         return redirect(url_for("index"))
 
     @app.route("/upload", methods=["GET", "POST"])
+    @login_required
     def upload():
         if request.method == "POST":
             archivo = request.files.get("archivo")
@@ -667,6 +732,7 @@ def crear_app():
         return render_template("upload.html")
 
     @app.route("/jugadores", methods=["GET", "POST"])
+    @login_required
     def jugadores():
         if request.method == "POST":
             nombre = request.form.get("nombre", "").strip()
@@ -686,6 +752,7 @@ def crear_app():
         return render_template("jugadores.html", jugadores=lista)
 
     @app.route("/jugadores/<int:jugador_id>/pais", methods=["POST"])
+    @login_required
     def set_pais_jugador(jugador_id):
         jugador = Jugador.query.get_or_404(jugador_id)
         pais_raw = request.form.get("pais", "").strip().upper()
@@ -694,6 +761,7 @@ def crear_app():
         return redirect(url_for("jugadores"))
 
     @app.route("/jugadores/<int:jugador_id>/eliminar", methods=["POST"])
+    @login_required
     def eliminar_jugador(jugador_id):
         jugador = Jugador.query.get_or_404(jugador_id)
         db.session.delete(jugador)
@@ -702,6 +770,7 @@ def crear_app():
         return redirect(url_for("jugadores"))
 
     @app.route("/admin/diagnostico")
+    @login_required
     def admin_diagnostico():
         if request.args.get("token") != app.config["SECRET_KEY"]:
             return "no autorizado", 404

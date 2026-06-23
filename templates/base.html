@@ -39,10 +39,19 @@
         </div>
       </a>
 
-      <button class="theme-toggle ms-auto" data-theme-toggle aria-label="Cambiar tema">
-        <span data-theme-icon>☾</span>
-        <span data-theme-label>Oscuro</span>
-      </button>
+      <div class="ms-auto d-flex align-items-center gap-2">
+        {% if current_user.is_authenticated %}
+          <form method="post" action="{{ url_for('logout') }}">
+            <button class="btn-ghost" type="submit">Cerrar sesión</button>
+          </form>
+        {% else %}
+          <a class="btn-ghost" href="{{ url_for('login') }}">Admin</a>
+        {% endif %}
+        <button class="theme-toggle" data-theme-toggle aria-label="Cambiar tema">
+          <span data-theme-icon>☾</span>
+          <span data-theme-label>Oscuro</span>
+        </button>
+      </div>
     </header>
 
     {# ── NAV PESTAÑAS ── #}
@@ -55,6 +64,7 @@
          class="q-tab {% if request.endpoint == 'analisis' %}is-active{% endif %}">
         Análisis
       </a>
+      {% if current_user.is_authenticated %}
       <a href="{{ url_for('upload') }}"
          class="q-tab {% if request.endpoint == 'upload' %}is-active{% endif %}">
         Subir
@@ -63,6 +73,7 @@
          class="q-tab {% if request.endpoint in ('jugadores', 'detalle_jugador') %}is-active{% endif %}">
         Jugadores
       </a>
+      {% endif %}
     </nav>
 
     {# ── FLASH MESSAGES ── #}

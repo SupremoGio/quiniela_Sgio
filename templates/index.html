@@ -15,15 +15,20 @@
     </p>
   </div>
   <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+    {% if current_user.is_authenticated %}
     <button class="btn-ghost" type="button" data-bs-toggle="collapse" data-bs-target="#form-campeon">
       🏆 {{ campeon_real if campeon_real else 'Campeón' }}
     </button>
     <form method="post" action="{{ url_for('sync_calendario') }}">
       <button class="btn-ghost" type="submit">↻ Sincronizar</button>
     </form>
+    {% elif campeon_real %}
+    <span class="btn-ghost" style="cursor:default;">🏆 {{ campeon_real }}</span>
+    {% endif %}
   </div>
 </div>
 
+{% if current_user.is_authenticated %}
 {# ── FORM CAMPEÓN ── #}
 <div class="collapse" id="form-campeon">
   <div class="panel" style="max-width:420px;margin-bottom:16px;border-top:3px solid var(--gold);">
@@ -44,6 +49,7 @@
     </form>
   </div>
 </div>
+{% endif %}
 
 {# ── FILTRO POR FASE ── #}
 {% if jornadas %}

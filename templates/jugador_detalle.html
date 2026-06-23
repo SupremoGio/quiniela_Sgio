@@ -2,11 +2,11 @@
 {% block title %}{{ jugador.nombre }} — Quiniela Mundial 2026{% endblock %}
 {% block content %}
 
-<a href="{{ url_for('jugadores') }}"
+<a href="{{ url_for('jugadores') if current_user.is_authenticated else url_for('index') }}"
    style="display:inline-flex;align-items:center;gap:7px;background:transparent;border:none;
           color:var(--sub);font-family:var(--font-body);font-weight:600;font-size:14px;
           text-decoration:none;margin-bottom:16px;">
-  ← Volver a jugadores
+  ← Volver
 </a>
 
 {# ── HERO ── #}

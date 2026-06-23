@@ -10,6 +10,7 @@
         <option value="{{ j }}" {% if j == jornada %}selected{% endif %}>{{ FASES_MUNDIAL.get(j, 'Jornada ' ~ j) }}</option>
       {% endfor %}
     </select>
+    {% if current_user.is_authenticated %}
     <form method="post" action="{{ url_for('sync_jornada', jornada=jornada) }}">
       <button class="btn btn-primary btn-sm" type="submit">↻ Actualizar resultados</button>
     </form>
@@ -18,6 +19,7 @@
           onsubmit="return confirm('¿Seguro que quieres borrar TODOS los partidos y predicciones de {{ fase_nombre }}? Esto no se puede deshacer.');">
       <button class="btn btn-outline-danger btn-sm" type="submit">🗑 Borrar fase</button>
     </form>
+    {% endif %}
   </div>
 </div>
 
@@ -39,7 +41,7 @@
     <span class="d-flex align-items-center gap-2">
       {% if partido.finalizado %}
         <span class="badge bg-success">{{ partido.marcador_local }} - {{ partido.marcador_visitante }}</span>
-      {% else %}
+      {% elif current_user.is_authenticated %}
         <span class="badge bg-secondary">Pendiente</span>
         <form method="post" action="{{ url_for('set_resultado', partido_id=partido.id) }}" class="d-flex gap-1 align-items-center">
           <input type="number" name="marcador_local" min="0" max="20" placeholder="L" class="form-control form-control-sm" style="width:50px" required>
@@ -47,6 +49,8 @@
           <input type="number" name="marcador_visitante" min="0" max="20" placeholder="V" class="form-control form-control-sm" style="width:50px" required>
           <button type="submit" class="btn btn-success btn-sm">✓</button>
         </form>
+      {% else %}
+        <span class="badge bg-secondary">Pendiente</span>
       {% endif %}
     </span>
   </div>
