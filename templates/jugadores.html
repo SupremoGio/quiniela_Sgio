@@ -37,32 +37,6 @@
   </div>
 </div>
 
-{# Sugerencias de posibles duplicados (nombres muy parecidos) #}
-{% if sugerencias_fusion %}
-<div class="panel mb-4" style="border-color:#e0a32c;">
-  <p class="q-section-title" style="margin-bottom:10px;">⚠️ Posibles duplicados detectados</p>
-  <div style="display:flex;flex-direction:column;gap:8px;">
-    {% for a, b, ratio in sugerencias_fusion %}
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-family:var(--font-body);font-size:13px;">
-      <span><strong>{{ a.nombre }}</strong> ↔ <strong>{{ b.nombre }}</strong>
-        <span style="color:var(--sub);font-size:11px;">({{ (ratio * 100) | round | int }}% similar)</span>
-      </span>
-      <form method="post" action="{{ url_for('fusionar_jugador', jugador_id=b.id) }}"
-            onsubmit="return confirm('¿Fusionar a {{ b.nombre }} con {{ a.nombre }}?');" class="d-flex gap-1">
-        <input type="hidden" name="jugador_destino_id" value="{{ a.id }}">
-        <button class="btn btn-warning btn-sm" type="submit">Fusionar "{{ b.nombre }}" → "{{ a.nombre }}"</button>
-      </form>
-      <form method="post" action="{{ url_for('fusionar_jugador', jugador_id=a.id) }}"
-            onsubmit="return confirm('¿Fusionar a {{ a.nombre }} con {{ b.nombre }}?');" class="d-flex gap-1">
-        <input type="hidden" name="jugador_destino_id" value="{{ b.id }}">
-        <button class="btn btn-outline-warning btn-sm" type="submit">Fusionar "{{ a.nombre }}" → "{{ b.nombre }}"</button>
-      </form>
-    </div>
-    {% endfor %}
-  </div>
-</div>
-{% endif %}
-
 {# Grid de tarjetas #}
 {% if not jugadores %}
   <p style="color:var(--sub);font-family:var(--font-body);">Aún no hay participantes.</p>
