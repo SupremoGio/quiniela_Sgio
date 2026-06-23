@@ -13,8 +13,9 @@
     <form method="post" action="{{ url_for('sync_jornada', jornada=jornada) }}">
       <button class="btn btn-primary btn-sm" type="submit">↻ Actualizar resultados</button>
     </form>
+    {% set fase_nombre = FASES_MUNDIAL.get(jornada, 'Jornada ' ~ jornada) %}
     <form method="post" action="{{ url_for('eliminar_jornada', jornada=jornada) }}"
-          onsubmit="return confirm('¿Seguro que quieres borrar TODOS los partidos y predicciones de {{ FASES_MUNDIAL.get(jornada, \"Jornada \" ~ jornada) }}? Esto no se puede deshacer.');">
+          onsubmit="return confirm('¿Seguro que quieres borrar TODOS los partidos y predicciones de {{ fase_nombre }}? Esto no se puede deshacer.');">
       <button class="btn btn-outline-danger btn-sm" type="submit">🗑 Borrar fase</button>
     </form>
   </div>
