@@ -2,43 +2,65 @@
 {% block title %}Tabla de posiciones — Quiniela Mundial 2026{% endblock %}
 {% block content %}
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h2 class="mb-0">Tabla de posiciones</h2>
-  <div class="d-flex gap-2 flex-wrap">
-    <button class="btn btn-outline-warning btn-sm" type="button"
-            data-bs-toggle="collapse" data-bs-target="#form-campeon">
-      🏆 {{ campeon_real if campeon_real else 'Establecer campeón' }}
+{# ── ENCABEZADO + ACCIONES ── #}
+<div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:clamp(14px,2.6vw,20px);">
+  <div>
+    <h1 class="q-h1">Tabla de posiciones</h1>
+    <p class="q-sub">
+      {% if jornada_sel %}
+        Puntos de <strong>{{ FASES_MUNDIAL.get(jornada_sel, 'Jornada ' ~ jornada_sel) }}</strong> únicamente
+      {% else %}
+        Clasificación general · {{ tabla|length }} participantes
+      {% endif %}
+    </p>
+  </div>
+  <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+    <button class="btn-ghost" type="button" data-bs-toggle="collapse" data-bs-target="#form-campeon">
+      🏆 {{ campeon_real if campeon_real else 'Campeón' }}
     </button>
     <form method="post" action="{{ url_for('sync_calendario') }}">
-      <button class="btn btn-outline-secondary btn-sm" type="submit">↻ Sincronizar calendario</button>
+      <button class="btn-ghost" type="submit">↻ Sincronizar</button>
     </form>
   </div>
 </div>
 
-{# Form para establecer el campeón real #}
-<div class="collapse mb-3" id="form-campeon">
-  <div class="card card-body border-warning bg-warning bg-opacity-10">
-    <p class="fw-semibold mb-2">🏆 Establecer campeón real <span class="text-muted fw-normal small">(otorga 5 pts a quien lo predijo)</span></p>
-    <form method="post" action="{{ url_for('set_campeon') }}" class="d-flex gap-2 align-items-center flex-wrap">
-      <input type="text" name="campeon_real" class="form-control form-control-sm"
-             placeholder="Nombre del equipo" value="{{ campeon_real or '' }}" style="max-width:220px" required>
-      <button type="submit" class="btn btn-warning btn-sm">✓ Confirmar</button>
+{# ── FORM CAMPEÓN ── #}
+<div class="collapse" id="form-campeon">
+  <div class="panel" style="max-width:420px;margin-bottom:16px;border-top:3px solid var(--gold);">
+    <p style="font-family:var(--font-head);font-weight:600;font-size:14px;letter-spacing:.04em;
+              text-transform:uppercase;margin:0 0 10px;">
+      🏆 Establecer campeón
+      <span style="font-family:var(--font-body);font-size:12px;color:var(--sub);
+                   text-transform:none;letter-spacing:0;font-weight:400;margin-left:4px;">
+        (otorga 5 pts a quien lo predijo)
+      </span>
+    </p>
+    <form method="post" action="{{ url_for('set_campeon') }}" class="d-flex gap-2 align-items-center">
+      <input type="text" name="campeon_real" placeholder="Nombre del equipo"
+             value="{{ campeon_real or '' }}" required
+             style="flex:1;padding:9px 12px;border-radius:10px;border:1px solid var(--line);
+                    background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:14px;">
+      <button class="btn-accent" type="submit" style="padding:9px 16px;">✓</button>
     </form>
   </div>
 </div>
 
-{# Tabs de filtro por jornada #}
+{# ── FILTRO POR FASE ── #}
 {% if jornadas %}
-<div class="mb-3 d-flex flex-wrap gap-2">
+<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:clamp(14px,2.6vw,20px);">
   <a href="{{ url_for('index') }}"
-     class="btn btn-sm {{ 'btn-dark' if jornada_sel is none else 'btn-outline-dark' }}">
+     class="q-tab {% if jornada_sel is none %}is-active{% endif %}"
+     style="flex:none;min-width:unset;padding:8px 14px;">
     General
   </a>
   {% for j in jornadas %}
   <a href="{{ url_for('index', jornada=j) }}"
-     class="btn btn-sm {{ 'btn-primary' if jornada_sel == j else 'btn-outline-primary' }}">
-    {{ FASES_MUNDIAL.get(j, 'Jornada ' ~ j) }}
-    <span class="badge {{ 'bg-light text-dark' if jornada_sel == j else 'bg-secondary' }} ms-1">
+     class="q-tab {% if jornada_sel == j %}is-active{% endif %}"
+     style="flex:none;min-width:unset;padding:8px 14px;">
+    {{ FASES_CORTAS.get(j, 'J' ~ j) }}
+    <span style="font-family:var(--font-body);font-size:10px;font-weight:700;
+                 background:rgba(255,255,255,.25);border-radius:99px;
+                 padding:1px 5px;margin-left:4px;">
       {{ partidos_por_jornada[j] }}
     </span>
   </a>
@@ -46,75 +68,156 @@
 </div>
 {% endif %}
 
-{% if jornada_sel is not none %}
-  <p class="text-muted small">Mostrando puntos de <strong>{{ FASES_MUNDIAL.get(jornada_sel, 'Jornada ' ~ jornada_sel) }}</strong> únicamente. Los 5 pts del campeón se muestran solo en la vista General.</p>
-{% endif %}
-
 {% if not tabla %}
-  <p class="text-muted">Todavía no hay jugadores ni predicciones cargadas. Empieza por
-    <a href="{{ url_for('jugadores') }}">agregar a los participantes</a> y
-    <a href="{{ url_for('upload') }}">subir las predicciones</a>.</p>
+  <p style="color:var(--sub);font-family:var(--font-body);">
+    Todavía no hay jugadores ni predicciones.
+    <a href="{{ url_for('jugadores') }}" style="color:var(--field);">Agrega participantes</a> y
+    <a href="{{ url_for('upload') }}" style="color:var(--field);">sube las predicciones</a>.
+  </p>
 {% else %}
-<div class="table-responsive">
-<table class="table table-striped align-middle">
-  <thead>
-    <tr>
-      <th>#</th>
-      <th>Jugador</th>
-      {% if not jornada_sel %}
-      <th class="text-center">🏆 Campeón</th>
-      {% endif %}
-      <th class="text-center">Exactos (3 pts)</th>
-      <th class="text-center">Resultado (1 pt)</th>
-      <th class="text-center">Puntos totales</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for j in tabla %}
-    {% set s = stats[j.id] %}
-    {% set pc = preds_campeon.get(j.id) if preds_campeon else none %}
-    <tr>
-      <td>{{ loop.index }}</td>
-      <td><a href="{{ url_for('detalle_jugador', jugador_id=j.id) }}">{{ j.nombre }}</a></td>
-      {% if not jornada_sel %}
-      <td class="text-center">
-        {% if pc %}
-          {% if campeon_real and pc.puntos == 5 %}
-            <span class="badge bg-success">⭐ {{ pc.equipo }}</span>
-          {% elif campeon_real and pc.puntos == 0 %}
-            <span class="text-muted small">{{ pc.equipo }}</span>
-          {% else %}
-            <span class="badge bg-secondary">{{ pc.equipo }}</span>
-          {% endif %}
-        {% else %}
-          <span class="text-muted">—</span>
-        {% endif %}
-      </td>
-      {% endif %}
-      <td class="text-center">{{ s.exactos }}</td>
-      <td class="text-center">{{ s.resultado }}</td>
-      <td class="text-center fw-bold">{{ s.puntos }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-</div>
+
+{# ── PODIO TOP-3 (solo vista general con ≥3 jugadores) ── #}
+{% if not jornada_sel and tabla|length >= 3 %}
+{% set p1 = tabla[0] %}
+{% set p2 = tabla[1] %}
+{% set p3 = tabla[2] %}
+<section class="podium-wrap rise">
+  <div class="podium">
+
+    {# 2° lugar #}
+    <div class="podium__col" style="animation:riseIn .5s ease both;animation-delay:.07s;">
+      <div class="avatar podium__avatar podium__avatar--2"
+           style="background:{{ avatar_color(p2) }};">{{ inicial(p2) }}</div>
+      <div class="podium__name">
+        {{ p2.nombre }}{% if p2.pais %} {{ bandera_emoji(p2.pais) }}{% endif %}
+      </div>
+      <div class="podium__meta">
+        <span style="font-family:var(--font-head);font-weight:600;color:var(--ink);">{{ stats[p2.id].puntos }}</span>
+        <span>pts</span>
+      </div>
+      <div class="podium__bar podium__bar--2">2</div>
+    </div>
+
+    {# 1° lugar #}
+    <div class="podium__col podium__col--1" style="animation:riseIn .5s ease both;">
+      <div class="avatar podium__avatar podium__col--1 podium__avatar--1"
+           style="background:{{ avatar_color(p1) }};">{{ inicial(p1) }}</div>
+      <div class="podium__name" style="font-size:clamp(13px,3.4vw,16px);">
+        {{ p1.nombre }}{% if p1.pais %} {{ bandera_emoji(p1.pais) }}{% endif %}
+      </div>
+      <div class="podium__meta">
+        <span style="font-family:var(--font-head);font-weight:700;font-size:15px;color:var(--ink);">{{ stats[p1.id].puntos }}</span>
+        <span>pts</span>
+      </div>
+      <div class="podium__bar podium__bar--1">1</div>
+    </div>
+
+    {# 3° lugar #}
+    <div class="podium__col" style="animation:riseIn .5s ease both;animation-delay:.12s;">
+      <div class="avatar podium__avatar podium__avatar--3"
+           style="background:{{ avatar_color(p3) }};">{{ inicial(p3) }}</div>
+      <div class="podium__name">
+        {{ p3.nombre }}{% if p3.pais %} {{ bandera_emoji(p3.pais) }}{% endif %}
+      </div>
+      <div class="podium__meta">
+        <span style="font-family:var(--font-head);font-weight:600;color:var(--ink);">{{ stats[p3.id].puntos }}</span>
+        <span>pts</span>
+      </div>
+      <div class="podium__bar podium__bar--3">3</div>
+    </div>
+
+  </div>
+</section>
 {% endif %}
 
-{% if not jornada_sel %}
-<h5 class="mt-4">Fases del torneo</h5>
-{% if not jornadas %}
-  <p class="text-muted">Aún no hay partidos cargados. Usa el botón de arriba para traer el calendario completo desde la API, o sube un excel de predicciones.</p>
-{% else %}
-<div class="d-flex flex-wrap gap-2">
-  {% for j in jornadas %}
-    <a class="btn btn-outline-primary" href="{{ url_for('ver_jornada', jornada=j) }}">
-      {{ FASES_MUNDIAL.get(j, 'Jornada ' ~ j) }}
-      <span class="badge bg-secondary ms-1">{{ partidos_por_jornada[j] }}</span>
-    </a>
-  {% endfor %}
+{# ── LEYENDA ── #}
+<div class="legend">
+  <span><i class="exact"></i>Marcador exacto · 3 pts</span>
+  <span><i class="result"></i>Resultado · 1 pt</span>
+  {% if not jornada_sel %}
+  <span>🏆 Campeón · 5 pts</span>
+  {% endif %}
 </div>
-{% endif %}
+
+{# ── STANDINGS ── #}
+<section class="standings rise">
+  {% for j in tabla %}
+  {% set s = stats[j.id] %}
+  {% set rk = loop.index %}
+  {% set pc = preds_campeon.get(j.id) if preds_campeon else none %}
+  <div class="row-player rank-{{ rk }} {% if rk == 1 %}is-leader{% endif %}"
+       style="animation:riseIn .45s ease both;animation-delay:{{ loop.index0 * 0.04 }}s;">
+
+    <div class="row-player__rank">{{ rk }}</div>
+
+    <a href="{{ url_for('detalle_jugador', jugador_id=j.id) }}" style="text-decoration:none;">
+      <div class="avatar row-player__avatar" style="background:{{ avatar_color(j) }};">
+        {{ inicial(j) }}
+      </div>
+    </a>
+
+    <div class="row-player__main">
+      <div class="row-player__name">
+        <a href="{{ url_for('detalle_jugador', jugador_id=j.id) }}"
+           style="text-decoration:none;color:inherit;">
+          <b>{{ j.nombre }}</b>
+        </a>
+        {% if j.pais %}<span style="font-size:clamp(13px,3.4vw,15px);">{{ bandera_emoji(j.pais) }}</span>{% endif %}
+        {% if rk == 1 %}<span class="row-player__leadertag">★ LÍDER</span>{% endif %}
+      </div>
+      {# Pick del campeón como sub-línea #}
+      {% if not jornada_sel and pc %}
+        <div style="font-family:var(--font-body);font-size:11px;color:var(--sub);display:flex;align-items:center;gap:4px;margin-top:1px;">
+          🏆
+          {% if campeon_real and pc.puntos == 5 %}
+            <span style="color:var(--field);font-weight:700;">{{ pc.equipo }} ✓ +5</span>
+          {% else %}
+            {{ pc.equipo }}
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="chips">
+      <span class="chip-stat exact" title="Marcadores exactos">{{ s.exactos }}</span>
+      <span class="chip-stat result" title="Resultados acertados">{{ s.resultado }}</span>
+    </div>
+
+    <div class="row-player__pts">
+      <b>{{ s.puntos }}</b>
+      <small>PTS</small>
+    </div>
+  </div>
+  {% endfor %}
+</section>
+
+{% endif %}{# /if tabla #}
+
+{# ── FASES DEL TORNEO ── #}
+{% if not jornada_sel and jornadas %}
+<div style="margin-top:clamp(24px,4vw,32px);">
+  <p class="q-section-title">Fases del torneo</p>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;">
+    {% for j in jornadas %}
+    <a href="{{ url_for('ver_jornada', jornada=j) }}"
+       style="display:inline-flex;align-items:center;gap:7px;padding:10px 16px;
+              background:var(--surface);border:1px solid var(--line);border-radius:11px;
+              font-family:var(--font-head);font-weight:600;font-size:13px;letter-spacing:.04em;
+              text-transform:uppercase;color:var(--ink);text-decoration:none;
+              transition:box-shadow .15s;" >
+      {{ FASES_MUNDIAL.get(j, 'Jornada ' ~ j) }}
+      <span style="background:var(--chip);color:var(--sub);border-radius:99px;
+                   padding:2px 8px;font-size:11px;font-family:var(--font-body);font-weight:700;">
+        {{ partidos_por_jornada[j] }}
+      </span>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% elif not jornadas %}
+<p style="margin-top:20px;color:var(--sub);font-family:var(--font-body);font-size:14px;">
+  Aún no hay partidos. Usa <strong>↻ Sincronizar</strong> para traer el calendario desde la API.
+</p>
 {% endif %}
 
 {% endblock %}
