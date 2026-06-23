@@ -221,6 +221,27 @@ def crear_app():
     app.jinja_env.globals["FASES_MUNDIAL"] = FASES_MUNDIAL
     app.jinja_env.globals["FASES_CORTAS"] = FASES_CORTAS
 
+    _AVATAR_COLORS = [
+        "#0B6B3A", "#16365C", "#C8313B", "#D99B1C",
+        "#7E5BA6", "#1A7FA1", "#C46E22", "#5B8C2A",
+    ]
+
+    def _avatar_color(jugador):
+        return _AVATAR_COLORS[jugador.id % len(_AVATAR_COLORS)]
+
+    def _inicial(jugador):
+        return jugador.nombre[0].upper() if jugador.nombre else "?"
+
+    def _bandera_emoji(pais):
+        if not pais or len(pais) != 2:
+            return ""
+        base = 0x1F1E6 - ord("A")
+        return chr(ord(pais[0].upper()) + base) + chr(ord(pais[1].upper()) + base)
+
+    app.jinja_env.globals["avatar_color"] = _avatar_color
+    app.jinja_env.globals["inicial"] = _inicial
+    app.jinja_env.globals["bandera_emoji"] = _bandera_emoji
+
     # ---------- helpers internos ----------
     def _sincronizar_calendario():
         """Trae el calendario completo (104 partidos) desde la API y
