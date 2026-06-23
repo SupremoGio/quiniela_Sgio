@@ -9,6 +9,29 @@
   </form>
 </div>
 
+{# Tabs de filtro por jornada #}
+{% if jornadas %}
+<div class="mb-3 d-flex flex-wrap gap-2">
+  <a href="{{ url_for('index') }}"
+     class="btn btn-sm {{ 'btn-dark' if jornada_sel is none else 'btn-outline-dark' }}">
+    General
+  </a>
+  {% for j in jornadas %}
+  <a href="{{ url_for('index', jornada=j) }}"
+     class="btn btn-sm {{ 'btn-primary' if jornada_sel == j else 'btn-outline-primary' }}">
+    Jornada {{ j }}
+    <span class="badge {{ 'bg-light text-dark' if jornada_sel == j else 'bg-secondary' }} ms-1">
+      {{ partidos_por_jornada[j] }}
+    </span>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if jornada_sel is not none %}
+  <p class="text-muted small">Mostrando puntos de la <strong>Jornada {{ jornada_sel }}</strong> únicamente.</p>
+{% endif %}
+
 {% if not tabla %}
   <p class="text-muted">Todavía no hay jugadores ni predicciones cargadas. Empieza por
     <a href="{{ url_for('jugadores') }}">agregar a los participantes</a> y
@@ -26,27 +49,33 @@
   </thead>
   <tbody>
     {% for j in tabla %}
+    {% set s = stats[j.id] %}
     <tr>
       <td>{{ loop.index }}</td>
       <td><a href="{{ url_for('detalle_jugador', jugador_id=j.id) }}">{{ j.nombre }}</a></td>
-      <td class="text-center">{{ j.aciertos_exactos }}</td>
-      <td class="text-center">{{ j.aciertos_resultado }}</td>
-      <td class="text-center fw-bold">{{ j.puntos_totales }}</td>
+      <td class="text-center">{{ s.exactos }}</td>
+      <td class="text-center">{{ s.resultado }}</td>
+      <td class="text-center fw-bold">{{ s.puntos }}</td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
 {% endif %}
 
+{% if not jornada_sel %}
 <h5 class="mt-4">Jornadas</h5>
 {% if not jornadas %}
-  <p class="text-muted">Aún no hay partidos cargados. Usa el botón de arriba para traer el calendario completo desde la API, o sube un excel de predicciones (eso también crea los partidos).</p>
+  <p class="text-muted">Aún no hay partidos cargados. Usa el botón de arriba para traer el calendario completo desde la API, o sube un excel de predicciones.</p>
 {% else %}
 <div class="d-flex flex-wrap gap-2">
   {% for j in jornadas %}
-    <a class="btn btn-outline-primary" href="{{ url_for('ver_jornada', jornada=j) }}">Jornada {{ j }}</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('ver_jornada', jornada=j) }}">
+      Jornada {{ j }}
+      <span class="badge bg-secondary ms-1">{{ partidos_por_jornada[j] }}</span>
+    </a>
   {% endfor %}
 </div>
+{% endif %}
 {% endif %}
 
 {% endblock %}

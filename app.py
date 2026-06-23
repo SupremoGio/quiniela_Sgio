@@ -17,6 +17,7 @@ Para correrlo localmente:
 import os
 import re
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import click
 import pandas as pd
@@ -27,7 +28,7 @@ import football_api
 from models import Jugador, Partido, Prediccion, db
 from scoring import calcular_puntos
 
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 
 def _buscar_jugador_insensible(nombre_jugador):
@@ -160,31 +161,62 @@ def _importar_formato_ancho(df, jornada):
 def crear_app():
     app = Flask(__name__)
     app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "cambia-esto-en-produccion")
-    app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
+    db_url = os.environ.get(
         "DATABASE_URL", "sqlite:///" + os.path.join(app.instance_path, "quiniela.db")
     )
+    # Railway entrega 'postgres://' pero SQLAlchemy 2.x requiere 'postgresql://'
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+    app.config["SQLALCHEMY_DATABASE_URI"] = db_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 MB para el excel
 
     os.makedirs(app.instance_path, exist_ok=True)
     db.init_app(app)
+    with app.app_context():
+        db.create_all()
+
+    _GDL = ZoneInfo("America/Mexico_City")
+
+    @app.template_filter("guadalajara")
+    def to_guadalajara(dt):
+        if dt is None:
+            return ""
+        gdt = dt.replace(tzinfo=ZoneInfo("UTC")).astimezone(_GDL)
+        return gdt.strftime("%d %b %Y · %H:%M")
 
     # ---------- helpers internos ----------
     def _sincronizar_calendario():
         """Trae el calendario completo (104 partidos) desde la API y
         crea/actualiza los registros de Partido. Si la API ya marca un
         partido como FINISHED, guarda también el marcador."""
+        todos_en_db = Partido.query.all()
         partidos_api = football_api.obtener_partidos()
         creados, actualizados = 0, 0
         for p in partidos_api:
             datos = football_api.extraer_resultado(p)
+            if not datos["jornada"] or not datos["equipo_local"] or not datos["equipo_visitante"]:
+                continue
+
+            # 1. Buscar por api_match_id
             partido = Partido.query.filter_by(api_match_id=datos["api_match_id"]).first()
+
+            # 2. Buscar por nombre exacto
             if partido is None:
                 partido = Partido.query.filter_by(
                     jornada=datos["jornada"],
                     equipo_local=datos["equipo_local"],
                     equipo_visitante=datos["equipo_visitante"],
                 ).first()
+
+            # 3. Buscar por alias (nombre en español u otra variante)
+            if partido is None:
+                for p_db in todos_en_db:
+                    if (football_api.equipos_coinciden(p_db.equipo_local, datos["equipo_local"])
+                            and football_api.equipos_coinciden(p_db.equipo_visitante, datos["equipo_visitante"])
+                            and not p_db.api_match_id):
+                        partido = p_db
+                        break
 
             if partido is None:
                 partido = Partido(
@@ -193,6 +225,7 @@ def crear_app():
                     equipo_visitante=datos["equipo_visitante"],
                 )
                 db.session.add(partido)
+                todos_en_db.append(partido)
                 creados += 1
             else:
                 actualizados += 1
@@ -216,40 +249,53 @@ def crear_app():
         partidos_actualizados = 0
         predicciones_calificadas = 0
 
+        todos_en_db = Partido.query.all()
         for p in partidos_api:
             datos = football_api.extraer_resultado(p)
             if datos["estado"] != "FINISHED":
                 continue
+            if not datos["jornada"] or not datos["equipo_local"] or not datos["equipo_visitante"]:
+                continue
 
-            partido = Partido.query.filter_by(api_match_id=datos["api_match_id"]).first()
-            if partido is None:
-                partido = Partido.query.filter_by(
-                    jornada=datos["jornada"],
-                    equipo_local=datos["equipo_local"],
-                    equipo_visitante=datos["equipo_visitante"],
-                ).first()
-            if partido is None:
-                partido = Partido(
-                    jornada=datos["jornada"],
-                    equipo_local=datos["equipo_local"],
-                    equipo_visitante=datos["equipo_visitante"],
-                )
-                db.session.add(partido)
+            ml = datos["marcador_local"]
+            mv = datos["marcador_visitante"]
 
-            partido.api_match_id = datos["api_match_id"]
-            partido.marcador_local = datos["marcador_local"]
-            partido.marcador_visitante = datos["marcador_visitante"]
-            partido.finalizado = True
-            partidos_actualizados += 1
+            # Buscar por api_match_id (partido principal de la API)
+            por_api_id = Partido.query.filter_by(api_match_id=datos["api_match_id"]).first()
 
-            for pred in partido.predicciones:
-                pred.puntos = calcular_puntos(
-                    pred.pred_local,
-                    pred.pred_visitante,
-                    partido.marcador_local,
-                    partido.marcador_visitante,
-                )
-                predicciones_calificadas += 1
+            # Buscar todos los que coincidan por nombre/alias en CUALQUIER jornada
+            por_alias = {}
+            for p_db in todos_en_db:
+                local_ok = football_api.equipos_coinciden(p_db.equipo_local, datos["equipo_local"])
+                visit_ok = football_api.equipos_coinciden(p_db.equipo_visitante, datos["equipo_visitante"])
+                if local_ok and visit_ok:
+                    por_alias[p_db.id] = p_db
+
+            if not por_api_id and not por_alias:
+                continue  # partido no registrado en DB, ignorar
+
+            # Actualizar partido principal (con api_match_id)
+            if por_api_id:
+                por_api_id.api_match_id = datos["api_match_id"]
+                por_api_id.marcador_local = ml
+                por_api_id.marcador_visitante = mv
+                por_api_id.finalizado = True
+                partidos_actualizados += 1
+                for pred in por_api_id.predicciones:
+                    pred.puntos = calcular_puntos(pred.pred_local, pred.pred_visitante, ml, mv)
+                    predicciones_calificadas += 1
+
+            # Actualizar partidos con nombre alternativo (sin tocar api_match_id para evitar UNIQUE)
+            for partido in por_alias.values():
+                if por_api_id and partido.id == por_api_id.id:
+                    continue
+                partido.marcador_local = ml
+                partido.marcador_visitante = mv
+                partido.finalizado = True
+                partidos_actualizados += 1
+                for pred in partido.predicciones:
+                    pred.puntos = calcular_puntos(pred.pred_local, pred.pred_visitante, ml, mv)
+                    predicciones_calificadas += 1
 
         db.session.commit()
         return partidos_actualizados, predicciones_calificadas
@@ -277,12 +323,100 @@ def crear_app():
         print(f"{partidos_act} partido(s) actualizados, {preds_calif} predicción(es) calificadas.")
 
     # ---------- rutas ----------
+    @app.route("/analisis")
+    def analisis():
+        jugadores = Jugador.query.order_by(Jugador.nombre).all()
+        jornadas = sorted({p.jornada for p in Partido.query.all()})
+
+        player_stats = []
+        for j in jugadores:
+            pts_por_jornada = {}
+            for jn in jornadas:
+                pts = sum(
+                    p.puntos or 0
+                    for p in j.predicciones
+                    if p.partido.jornada == jn and p.puntos is not None
+                )
+                pts_por_jornada[jn] = pts
+
+            calificadas = [p for p in j.predicciones if p.puntos is not None]
+            total = len(j.predicciones)
+            n_cal = len(calificadas)
+            exactos = sum(1 for p in calificadas if p.puntos == 3)
+            result1 = sum(1 for p in calificadas if p.puntos == 1)
+            pct = round((exactos + result1) / n_cal * 100) if n_cal else 0
+            promedio = round(j.puntos_totales / n_cal, 2) if n_cal else 0
+            mejor_jn = max(pts_por_jornada, key=pts_por_jornada.get) if pts_por_jornada else None
+
+            player_stats.append({
+                "jugador": j,
+                "puntos": j.puntos_totales,
+                "exactos": exactos,
+                "resultado": result1,
+                "total_preds": total,
+                "calificadas": n_cal,
+                "pct": pct,
+                "promedio": promedio,
+                "pts_por_jornada": pts_por_jornada,
+                "mejor_jornada": mejor_jn,
+            })
+
+        player_stats.sort(key=lambda x: x["puntos"], reverse=True)
+
+        partidos_fin = Partido.query.filter_by(finalizado=True).all()
+        partido_stats = []
+        for partido in partidos_fin:
+            cal = [p for p in partido.predicciones if p.puntos is not None]
+            if not cal:
+                continue
+            ex = sum(1 for p in cal if p.puntos == 3)
+            re = sum(1 for p in cal if p.puntos == 1)
+            partido_stats.append({
+                "partido": partido,
+                "total": len(cal),
+                "exactos": ex,
+                "resultado": re,
+                "pct": round((ex + re) / len(cal) * 100),
+            })
+
+        partido_stats.sort(key=lambda x: x["pct"])
+        mas_dificiles = partido_stats[:5]
+        mas_faciles = list(reversed(partido_stats[-5:]))
+
+        return render_template(
+            "analisis.html",
+            player_stats=player_stats,
+            jornadas=jornadas,
+            mas_dificiles=mas_dificiles,
+            mas_faciles=mas_faciles,
+        )
+
     @app.route("/")
     def index():
+        jornada_sel = request.args.get("jornada", type=int)
         jugadores = Jugador.query.all()
-        tabla = sorted(jugadores, key=lambda j: j.puntos_totales, reverse=True)
-        jornadas = sorted({p.jornada for p in Partido.query.all()})
-        return render_template("index.html", tabla=tabla, jornadas=jornadas)
+        todos_partidos = Partido.query.all()
+        jornadas = sorted({p.jornada for p in todos_partidos})
+        partidos_por_jornada = {
+            jn: sum(1 for p in todos_partidos if p.jornada == jn)
+            for jn in jornadas
+        }
+
+        stats = {}
+        for j in jugadores:
+            preds = j.predicciones
+            if jornada_sel is not None:
+                preds = [p for p in preds if p.partido.jornada == jornada_sel]
+            stats[j.id] = {
+                "puntos": sum(p.puntos or 0 for p in preds),
+                "exactos": sum(1 for p in preds if p.puntos == 3),
+                "resultado": sum(1 for p in preds if p.puntos == 1),
+            }
+
+        tabla = sorted(jugadores, key=lambda j: stats[j.id]["puntos"], reverse=True)
+        return render_template("index.html", tabla=tabla, jornadas=jornadas,
+                               partidos_por_jornada=partidos_por_jornada,
+                               jornada_sel=jornada_sel, stats=stats)
 
     @app.route("/jornada/<int:jornada>")
     def ver_jornada(jornada):
@@ -317,6 +451,24 @@ def crear_app():
         except football_api.FootballDataError as exc:
             flash(str(exc), "error")
         return redirect(url_for("ver_jornada", jornada=jornada))
+
+    @app.route("/partido/<int:partido_id>/resultado", methods=["POST"])
+    def set_resultado(partido_id):
+        partido = Partido.query.get_or_404(partido_id)
+        try:
+            ml = int(request.form["marcador_local"])
+            mv = int(request.form["marcador_visitante"])
+        except (KeyError, ValueError):
+            flash("Marcador inválido.", "error")
+            return redirect(url_for("ver_jornada", jornada=partido.jornada))
+        partido.marcador_local = ml
+        partido.marcador_visitante = mv
+        partido.finalizado = True
+        for pred in partido.predicciones:
+            pred.puntos = calcular_puntos(pred.pred_local, pred.pred_visitante, ml, mv)
+        db.session.commit()
+        flash(f"Resultado guardado: {partido.equipo_local} {ml} - {mv} {partido.equipo_visitante}", "success")
+        return redirect(url_for("ver_jornada", jornada=partido.jornada))
 
     @app.route("/jornada/<int:jornada>/eliminar", methods=["POST"])
     def eliminar_jornada(jornada):
@@ -419,6 +571,32 @@ def crear_app():
         lista = Jugador.query.order_by(Jugador.nombre).all()
         return render_template("jugadores.html", jugadores=lista)
 
+    @app.route("/jugadores/<int:jugador_id>/fusionar", methods=["POST"])
+    def fusionar_jugador(jugador_id):
+        origen = Jugador.query.get_or_404(jugador_id)
+        destino_id = request.form.get("jugador_destino_id", type=int)
+        destino = Jugador.query.get_or_404(destino_id)
+        movidas, omitidas = 0, 0
+        for pred in list(origen.predicciones):
+            ya_existe = Prediccion.query.filter_by(
+                jugador_id=destino.id, partido_id=pred.partido_id
+            ).first()
+            if ya_existe is None:
+                pred.jugador_id = destino.id
+                movidas += 1
+            else:
+                db.session.delete(pred)
+                omitidas += 1
+        db.session.flush()
+        db.session.delete(origen)
+        db.session.commit()
+        flash(
+            f"'{origen.nombre}' fusionado con '{destino.nombre}': "
+            f"{movidas} predicción(es) movidas, {omitidas} omitida(s) por duplicado.",
+            "success",
+        )
+        return redirect(url_for("jugadores"))
+
     @app.route("/jugadores/<int:jugador_id>/eliminar", methods=["POST"])
     def eliminar_jugador(jugador_id):
         jugador = Jugador.query.get_or_404(jugador_id)
@@ -444,4 +622,6 @@ def crear_app():
 app = crear_app()
 
 if __name__ == "__main__":
+    with app.app_context():
+        db.create_all()
     app.run(debug=True)

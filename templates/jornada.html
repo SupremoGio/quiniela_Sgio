@@ -26,13 +26,26 @@
 
 {% for partido in partidos %}
 <div class="card mb-3">
-  <div class="card-header d-flex justify-content-between">
-    <span><strong>{{ partido.equipo_local }}</strong> vs <strong>{{ partido.equipo_visitante }}</strong></span>
-    <span>
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <div>
+      <span><strong>{{ partido.equipo_local }}</strong> vs <strong>{{ partido.equipo_visitante }}</strong></span>
+      {% if partido.fecha %}
+        <div class="text-muted small mt-1">
+          📅 {{ partido.fecha | guadalajara }} (Guadalajara)
+        </div>
+      {% endif %}
+    </div>
+    <span class="d-flex align-items-center gap-2">
       {% if partido.finalizado %}
         <span class="badge bg-success">{{ partido.marcador_local }} - {{ partido.marcador_visitante }}</span>
       {% else %}
         <span class="badge bg-secondary">Pendiente</span>
+        <form method="post" action="{{ url_for('set_resultado', partido_id=partido.id) }}" class="d-flex gap-1 align-items-center">
+          <input type="number" name="marcador_local" min="0" max="20" placeholder="L" class="form-control form-control-sm" style="width:50px" required>
+          <span>-</span>
+          <input type="number" name="marcador_visitante" min="0" max="20" placeholder="V" class="form-control form-control-sm" style="width:50px" required>
+          <button type="submit" class="btn btn-success btn-sm">✓</button>
+        </form>
       {% endif %}
     </span>
   </div>

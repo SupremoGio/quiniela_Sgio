@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+{% block title %}Análisis — Quiniela Mundial 2026{% endblock %}
+{% block content %}
+
+<h2 class="mb-4">Análisis</h2>
+
+{% if not player_stats %}
+  <p class="text-muted">Todavía no hay datos suficientes para mostrar análisis.</p>
+{% else %}
+
+{# ── TARJETAS RESUMEN ── #}
+{% set lider = player_stats[0] %}
+{% set ultimo = player_stats[-1] %}
+{% set mejor_pct = player_stats | sort(attribute='pct') | last %}
+{% set mejor_prom = player_stats | sort(attribute='promedio') | last %}
+
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-lg-3">
+    <div class="card text-center border-warning h-100">
+      <div class="card-body">
+        <div class="fs-1">🥇</div>
+        <div class="fw-bold fs-5">{{ lider.jugador.nombre }}</div>
+        <div class="text-muted small">Líder — {{ lider.puntos }} pts</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card text-center border-success h-100">
+      <div class="card-body">
+        <div class="fs-1">🎯</div>
+        <div class="fw-bold fs-5">{{ mejor_pct.jugador.nombre }}</div>
+        <div class="text-muted small">Mayor % acierto — {{ mejor_pct.pct }}%</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card text-center border-info h-100">
+      <div class="card-body">
+        <div class="fs-1">📈</div>
+        <div class="fw-bold fs-5">{{ mejor_prom.jugador.nombre }}</div>
+        <div class="text-muted small">Mejor promedio — {{ mejor_prom.promedio }} pts/partido</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card text-center border-secondary h-100">
+      <div class="card-body">
+        <div class="fs-1">📊</div>
+        <div class="fw-bold fs-5">{{ lider.puntos - ultimo.puntos }} pts</div>
+        <div class="text-muted small">Diferencia 1° vs último</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── PUNTOS POR JORNADA (heatmap) ── #}
+{% if jornadas %}
+<h5 class="mt-4 mb-2">Puntos por jornada</h5>
+<div class="table-responsive mb-4">
+  <table class="table table-bordered table-sm align-middle text-center" style="min-width:500px">
+    <thead class="table-dark">
+      <tr>
+        <th class="text-start">Jugador</th>
+        {% for jn in jornadas %}<th>J{{ jn }}</th>{% endfor %}
+        <th>Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ps in player_stats %}
+      <tr>
+        <td class="text-start fw-semibold">{{ ps.jugador.nombre }}</td>
+        {% for jn in jornadas %}
+          {% set pts = ps.pts_por_jornada.get(jn, 0) %}
+          {% if pts >= 25 %}
+            {% set bg = "table-success" %}
+          {% elif pts >= 15 %}
+            {% set bg = "table-warning" %}
+          {% elif pts > 0 %}
+            {% set bg = "" %}
+          {% else %}
+            {% set bg = "table-light text-muted" %}
+          {% endif %}
+          <td class="{{ bg }}">{{ pts }}</td>
+        {% endfor %}
+        <td class="fw-bold">{{ ps.puntos }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{# ── ESTADÍSTICAS DETALLADAS POR JUGADOR ── #}
+<h5 class="mt-4 mb-2">Estadísticas detalladas
+  <span class="text-muted fw-normal small">— clic en columna para ordenar</span>
+</h5>
+<div class="table-responsive mb-4">
+  <table id="tbl-stats" class="table table-striped table-sm align-middle">
+    <thead class="table-dark">
+      <tr>
+        <th data-col="0" class="sortable text-center" style="cursor:pointer;white-space:nowrap"># <span class="sort-icon">↕</span></th>
+        <th data-col="1" class="sortable" style="cursor:pointer;white-space:nowrap">Jugador <span class="sort-icon">↕</span></th>
+        <th data-col="2" class="sortable text-center" style="cursor:pointer;white-space:nowrap">Pts <span class="sort-icon">↕</span></th>
+        <th data-col="3" class="sortable text-center" style="cursor:pointer;white-space:nowrap">Exactos (3) <span class="sort-icon">↕</span></th>
+        <th data-col="4" class="sortable text-center" style="cursor:pointer;white-space:nowrap">Resultado (1) <span class="sort-icon">↕</span></th>
+        <th data-col="5" class="sortable text-center" style="cursor:pointer;white-space:nowrap">% Acierto <span class="sort-icon">↕</span></th>
+        <th data-col="6" class="sortable text-center" style="cursor:pointer;white-space:nowrap">Prom pts/partido <span class="sort-icon">↕</span></th>
+        <th data-col="7" class="sortable text-center" style="cursor:pointer;white-space:nowrap">Mejor jornada <span class="sort-icon">↕</span></th>
+        <th data-col="8" class="sortable text-center" style="cursor:pointer;white-space:nowrap">Partidos calificados <span class="sort-icon">↕</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ps in player_stats %}
+      <tr>
+        <td class="text-center">{{ loop.index }}</td>
+        <td><a href="{{ url_for('detalle_jugador', jugador_id=ps.jugador.id) }}">{{ ps.jugador.nombre }}</a></td>
+        <td class="text-center fw-bold" data-val="{{ ps.puntos }}">{{ ps.puntos }}</td>
+        <td class="text-center" data-val="{{ ps.exactos }}">
+          <span class="badge bg-success">{{ ps.exactos }}</span>
+        </td>
+        <td class="text-center" data-val="{{ ps.resultado }}">
+          <span class="badge bg-warning text-dark">{{ ps.resultado }}</span>
+        </td>
+        <td class="text-center" data-val="{{ ps.pct }}">
+          <div class="progress" style="height:18px;min-width:80px">
+            <div class="progress-bar
+              {% if ps.pct >= 60 %}bg-success
+              {% elif ps.pct >= 40 %}bg-warning
+              {% else %}bg-danger{% endif %}"
+              style="width:{{ ps.pct }}%">
+              {{ ps.pct }}%
+            </div>
+          </div>
+        </td>
+        <td class="text-center" data-val="{{ ps.promedio }}">{{ ps.promedio }}</td>
+        <td class="text-center" data-val="{{ ps.pts_por_jornada.get(ps.mejor_jornada, 0) if ps.mejor_jornada else 0 }}">
+          {% if ps.mejor_jornada %}
+            J{{ ps.mejor_jornada }}
+            <span class="text-muted small">({{ ps.pts_por_jornada[ps.mejor_jornada] }}pts)</span>
+          {% else %}—{% endif %}
+        </td>
+        <td class="text-center text-muted" data-val="{{ ps.calificadas }}">{{ ps.calificadas }} / {{ ps.total_preds }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+(function () {
+  const table = document.getElementById('tbl-stats');
+  const tbody = table.querySelector('tbody');
+  let lastCol = -1, asc = true;
+
+  table.querySelectorAll('th.sortable').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = parseInt(th.dataset.col);
+      asc = (col === lastCol) ? !asc : true;
+      lastCol = col;
+
+      // Reset icons
+      table.querySelectorAll('.sort-icon').forEach(el => el.textContent = '↕');
+      th.querySelector('.sort-icon').textContent = asc ? '▲' : '▼';
+
+      const rows = Array.from(tbody.querySelectorAll('tr'));
+      rows.sort((a, b) => {
+        const cellA = a.cells[col];
+        const cellB = b.cells[col];
+        const valA = cellA.dataset.val !== undefined ? parseFloat(cellA.dataset.val) : NaN;
+        const valB = cellB.dataset.val !== undefined ? parseFloat(cellB.dataset.val) : NaN;
+
+        let cmp;
+        if (!isNaN(valA) && !isNaN(valB)) {
+          cmp = valA - valB;
+        } else {
+          cmp = cellA.textContent.trim().localeCompare(cellB.textContent.trim(), 'es');
+        }
+        return asc ? cmp : -cmp;
+      });
+
+      rows.forEach((row, i) => {
+        // Update # column
+        row.cells[0].textContent = i + 1;
+        tbody.appendChild(row);
+      });
+    });
+  });
+})();
+</script>
+
+{# ── PARTIDOS MÁS DIFÍCILES / FÁCILES ── #}
+<div class="row g-4 mb-4">
+  <div class="col-md-6">
+    <h5 class="mb-2">Partidos más difíciles de predecir</h5>
+    <div class="list-group">
+      {% for ps in mas_dificiles %}
+      <div class="list-group-item">
+        <div class="d-flex justify-content-between">
+          <span class="fw-semibold small">
+            {{ ps.partido.equipo_local }} {{ ps.partido.marcador_local }}-{{ ps.partido.marcador_visitante }} {{ ps.partido.equipo_visitante }}
+          </span>
+          <span class="badge bg-danger">{{ ps.pct }}% acierto</span>
+        </div>
+        <div class="text-muted small">
+          Exactos: {{ ps.exactos }} · Resultado: {{ ps.resultado }} · de {{ ps.total }} predicciones
+        </div>
+      </div>
+      {% else %}
+      <div class="list-group-item text-muted">Sin datos aún.</div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="col-md-6">
+    <h5 class="mb-2">Partidos más fáciles de predecir</h5>
+    <div class="list-group">
+      {% for ps in mas_faciles %}
+      <div class="list-group-item">
+        <div class="d-flex justify-content-between">
+          <span class="fw-semibold small">
+            {{ ps.partido.equipo_local }} {{ ps.partido.marcador_local }}-{{ ps.partido.marcador_visitante }} {{ ps.partido.equipo_visitante }}
+          </span>
+          <span class="badge bg-success">{{ ps.pct }}% acierto</span>
+        </div>
+        <div class="text-muted small">
+          Exactos: {{ ps.exactos }} · Resultado: {{ ps.resultado }} · de {{ ps.total }} predicciones
+        </div>
+      </div>
+      {% else %}
+      <div class="list-group-item text-muted">Sin datos aún.</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{% endif %}
+{% endblock %}
