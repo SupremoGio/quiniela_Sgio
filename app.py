@@ -34,7 +34,7 @@ from flask_login import (
 )
 
 import football_api
-from models import ConfigApp, Jugador, Partido, Prediccion, PrediccionCampeon, db
+from models import ConfigApp, Jugador, Partido, Prediccion, PrediccionCampeon, SnapshotPosicion, db
 from scoring import calcular_puntos
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
@@ -296,6 +296,23 @@ def crear_app():
     app.jinja_env.globals["bandera_emoji"] = _bandera_emoji
 
     # ---------- helpers internos ----------
+    def _tomar_snapshot():
+        """Guarda un snapshot del ranking actual para calcular movimiento ▲▼."""
+        jugadores_all = Jugador.query.all()
+        preds_camp = {pc.jugador_id: pc for pc in PrediccionCampeon.query.all()}
+        pts_map = {}
+        for j in jugadores_all:
+            pts = j.puntos_totales
+            pc = preds_camp.get(j.id)
+            pts += (pc.puntos or 0) if pc else 0
+            pts_map[j.id] = pts
+        tabla_snap = sorted(jugadores_all, key=lambda j: pts_map[j.id], reverse=True)
+        now = datetime.utcnow()
+        for i, j in enumerate(tabla_snap):
+            db.session.add(SnapshotPosicion(jugador_id=j.id, posicion=i + 1,
+                                            puntos=pts_map[j.id], tomado_en=now))
+        db.session.flush()
+
     def _sincronizar_calendario():
         """Trae el calendario completo (104 partidos) desde la API y
         crea/actualiza los registros de Partido. Si la API ya marca un
@@ -588,10 +605,23 @@ def crear_app():
             }
 
         tabla = sorted(jugadores, key=lambda j: stats[j.id]["puntos"], reverse=True)
+
+        last_snap = db.session.query(SnapshotPosicion.tomado_en).order_by(
+            SnapshotPosicion.tomado_en.desc()
+        ).first()
+        movimiento = {}
+        if last_snap:
+            prev = {s.jugador_id: s.posicion
+                    for s in SnapshotPosicion.query.filter_by(tomado_en=last_snap[0]).all()}
+            for i, j in enumerate(tabla):
+                p = prev.get(j.id)
+                movimiento[j.id] = (p - (i + 1)) if p is not None else None
+
         return render_template("index.html", tabla=tabla, jornadas=jornadas,
                                partidos_por_jornada=partidos_por_jornada,
                                jornada_sel=jornada_sel, stats=stats,
-                               preds_campeon=preds_campeon, campeon_real=campeon_real)
+                               preds_campeon=preds_campeon, campeon_real=campeon_real,
+                               movimiento=movimiento)
 
     @app.route("/campeon", methods=["POST"])
     @login_required
@@ -639,6 +669,7 @@ def crear_app():
     @login_required
     def sync_jornada(jornada):
         try:
+            _tomar_snapshot()
             partidos_act, preds_calif, fechas_act, sin_match, total_api, encontrados = _sincronizar_resultados(jornada=jornada)
             if total_api == 0:
                 flash(

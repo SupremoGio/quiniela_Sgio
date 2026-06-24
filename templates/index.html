@@ -181,7 +181,15 @@
   <div class="row-player rank-{{ rk }} {% if rk == 1 %}is-leader{% endif %}"
        style="animation:riseIn .45s ease both;animation-delay:{{ loop.index0 * 0.04 }}s;">
 
-    <div class="row-player__rank">{{ rk }}</div>
+    <div class="row-player__rank" style="display:flex;flex-direction:column;align-items:center;gap:1px;">
+      {{ rk }}
+      {% set delta = movimiento.get(j.id) %}
+      {% if delta is not none and delta > 0 %}
+        <span style="font-size:8px;font-weight:700;line-height:1;color:var(--field);">▲{{ delta }}</span>
+      {% elif delta is not none and delta < 0 %}
+        <span style="font-size:8px;font-weight:700;line-height:1;color:var(--red);">▼{{ delta * -1 }}</span>
+      {% endif %}
+    </div>
 
     <a href="{{ url_for('detalle_jugador', jugador_id=j.id) }}" style="text-decoration:none;">
       <div class="avatar row-player__avatar" style="background:{{ avatar_color(j) }};">

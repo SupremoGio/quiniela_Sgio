@@ -95,6 +95,16 @@ class PrediccionCampeon(db.Model):
         return f"<PrediccionCampeon {self.jugador_id}: {self.equipo}>"
 
 
+class SnapshotPosicion(db.Model):
+    __tablename__ = "snapshots_posicion"
+
+    id = db.Column(db.Integer, primary_key=True)
+    jugador_id = db.Column(db.Integer, db.ForeignKey("jugadores.id"), nullable=False)
+    posicion = db.Column(db.Integer, nullable=False)
+    puntos = db.Column(db.Integer, nullable=False, default=0)
+    tomado_en = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
 class ConfigApp(db.Model):
     __tablename__ = "config_app"
 
