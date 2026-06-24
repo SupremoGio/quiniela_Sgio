@@ -17,7 +17,7 @@ Para correrlo localmente:
 import hmac
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import click
@@ -663,6 +663,30 @@ def crear_app():
             jugadores=jugadores,
             predicciones=predicciones,
         )
+
+    @app.route("/jornada/<int:jornada>/estado")
+    def estado_jornada(jornada):
+        partidos = Partido.query.filter_by(jornada=jornada).all()
+        ahora = datetime.utcnow()
+        data = []
+        for p in partidos:
+            if p.finalizado:
+                estado = "finalizado"
+            elif p.fecha and p.fecha <= ahora <= p.fecha + timedelta(hours=3):
+                estado = "vivo"
+            else:
+                estado = "pendiente"
+            data.append({
+                "id": p.id,
+                "estado": estado,
+                "marcador_local": p.marcador_local,
+                "marcador_visitante": p.marcador_visitante,
+                "predicciones": [
+                    {"jugador_id": pred.jugador_id, "puntos": pred.puntos}
+                    for pred in p.predicciones
+                ],
+            })
+        return {"partidos": data}
 
     @app.route("/sync/<int:jornada>", methods=["POST"])
     @login_required

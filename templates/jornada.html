@@ -37,7 +37,7 @@
 {# ── CARDS DE PARTIDOS ── #}
 <div style="display:flex;flex-direction:column;gap:clamp(12px,2.5vw,16px);">
 {% for partido in partidos %}
-<div class="match-card">
+<div class="match-card" data-partido-id="{{ partido.id }}">
 
   {# Fila superior: fecha/fase + estado #}
   <div class="match-card__top">
@@ -48,11 +48,13 @@
         {{ FASES_CORTAS.get(jornada, 'J' ~ jornada) }}
       {% endif %}
     </span>
-    {% if partido.finalizado %}
-      <span class="match-card__status">Finalizado</span>
-    {% else %}
-      <span style="font-family:var(--font-head);font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--sub);">Pendiente</span>
-    {% endif %}
+    <span class="js-status" data-estado="{{ 'finalizado' if partido.finalizado else 'pendiente' }}">
+      {% if partido.finalizado %}
+        <span class="match-card__status">Finalizado</span>
+      {% else %}
+        <span style="font-family:var(--font-head);font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--sub);">Pendiente</span>
+      {% endif %}
+    </span>
   </div>
 
   {# Equipos y marcador #}
@@ -60,11 +62,11 @@
     <div class="match-card__side local">
       <b>{{ partido.equipo_local }}</b>
     </div>
-    <div class="match-card__score">
+    <div class="match-card__score js-score">
       {% if partido.finalizado %}
-        {{ partido.marcador_local }}<s>–</s>{{ partido.marcador_visitante }}
+        <span class="js-marcador-local">{{ partido.marcador_local }}</span><s>–</s><span class="js-marcador-visitante">{{ partido.marcador_visitante }}</span>
       {% else %}
-        <s>?</s><s>–</s><s>?</s>
+        <s class="js-marcador-local">?</s><s>–</s><s class="js-marcador-visitante">?</s>
       {% endif %}
     </div>
     <div class="match-card__side">
@@ -116,13 +118,13 @@
         {% else %}
           {% set chip_class = '' %}
         {% endif %}
-        <span class="pred-chip {{ chip_class }}">
+        <span class="pred-chip {{ chip_class }}" data-jugador-id="{{ jugador.id }}">
           <span class="avatar" style="background:{{ avatar_color(jugador) }};width:18px;height:18px;font-size:9px;">{{ inicial(jugador) }}</span>
           <span style="font-size:11px;font-family:var(--font-body);font-weight:600;">{{ jugador.nombre }}</span>
           <b>{{ pred.pred_local }}–{{ pred.pred_visitante }}</b>
         </span>
       {% else %}
-        <span class="pred-chip" style="opacity:.4;">
+        <span class="pred-chip" style="opacity:.4;" data-jugador-id="{{ jugador.id }}">
           <span class="avatar" style="background:{{ avatar_color(jugador) }};width:18px;height:18px;font-size:9px;">{{ inicial(jugador) }}</span>
           <span style="font-size:11px;font-family:var(--font-body);font-weight:600;">{{ jugador.nombre }}</span>
           <b>—</b>
@@ -135,4 +137,57 @@
 {% endfor %}
 </div>
 
+<script>
+(function () {
+  const ESTADO_HTML = {
+    finalizado: '<span class="match-card__status">Finalizado</span>',
+    vivo: '<span class="match-card__status" style="color:var(--red);">🔴 En vivo</span>',
+    pendiente: '<span style="font-family:var(--font-head);font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--sub);">Pendiente</span>',
+  };
+
+  async function actualizar() {
+    let resp;
+    try {
+      resp = await fetch(window.location.pathname + "/estado", { cache: "no-store" });
+    } catch (e) {
+      return; // sin red, reintenta en el próximo tick
+    }
+    if (!resp.ok) return;
+    const { partidos } = await resp.json();
+
+    for (const p of partidos) {
+      const card = document.querySelector(`.match-card[data-partido-id="${p.id}"]`);
+      if (!card) continue;
+
+      const statusEl = card.querySelector(".js-status");
+      if (statusEl && statusEl.dataset.estado !== p.estado) {
+        statusEl.dataset.estado = p.estado;
+        statusEl.innerHTML = ESTADO_HTML[p.estado] || ESTADO_HTML.pendiente;
+      }
+
+      if (p.estado === "finalizado") {
+        const scoreEl = card.querySelector(".js-score");
+        const localEl = card.querySelector(".js-marcador-local");
+        const visitanteEl = card.querySelector(".js-marcador-visitante");
+        if (localEl && localEl.tagName === "S") {
+          scoreEl.innerHTML = `<span class="js-marcador-local">${p.marcador_local}</span><s>–</s><span class="js-marcador-visitante">${p.marcador_visitante}</span>`;
+        } else if (localEl) {
+          localEl.textContent = p.marcador_local;
+          visitanteEl.textContent = p.marcador_visitante;
+        }
+      }
+
+      for (const pred of p.predicciones) {
+        const chip = card.querySelector(`.pred-chip[data-jugador-id="${pred.jugador_id}"]`);
+        if (!chip) continue;
+        chip.classList.remove("is-exact", "is-result");
+        if (pred.puntos === 3) chip.classList.add("is-exact");
+        else if (pred.puntos === 1) chip.classList.add("is-result");
+      }
+    }
+  }
+
+  setInterval(actualizar, 45000);
+})();
+</script>
 {% endblock %}
