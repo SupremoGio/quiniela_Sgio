@@ -187,11 +187,13 @@
 
     <div class="row-player__rank" style="display:flex;flex-direction:column;align-items:center;gap:1px;">
       {{ rk }}
-      {% set delta = movimiento.get(j.id) %}
-      {% if delta is not none and delta > 0 %}
-        <span style="font-size:8px;font-weight:700;line-height:1;color:var(--field);">▲{{ delta }}</span>
-      {% elif delta is not none and delta < 0 %}
-        <span style="font-size:8px;font-weight:700;line-height:1;color:var(--red);">▼{{ delta * -1 }}</span>
+      {% if not jornada_sel %}
+        {% set delta = movimiento.get(j.id) %}
+        {% if delta is not none and delta > 0 %}
+          <span style="font-size:8px;font-weight:700;line-height:1;color:var(--field);">▲{{ delta }}</span>
+        {% elif delta is not none and delta < 0 %}
+          <span style="font-size:8px;font-weight:700;line-height:1;color:var(--red);">▼{{ delta * -1 }}</span>
+        {% endif %}
       {% endif %}
     </div>
 
