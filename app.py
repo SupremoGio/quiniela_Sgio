@@ -358,8 +358,9 @@ def crear_app():
         partidos_actualizados = 0
         predicciones_calificadas = 0
         fechas_actualizadas = 0
-        total_api = 0          # partidos válidos que devolvió la API
-        sin_match = []         # partidos FINISHED de la API sin equivalente en DB
+        encontrados_en_db = 0  # partidos API que encontraron al menos un registro en DB
+        total_api = 0
+        sin_match = []
 
         todos_en_db = Partido.query.all()
         for p in partidos_api:
@@ -372,10 +373,8 @@ def crear_app():
             ml = datos["marcador_local"]
             mv = datos["marcador_visitante"]
 
-            # Buscar por api_match_id (partido principal de la API)
             por_api_id = Partido.query.filter_by(api_match_id=datos["api_match_id"]).first()
 
-            # Buscar todos los que coincidan por nombre/alias en CUALQUIER jornada
             por_alias = {}
             for p_db in todos_en_db:
                 local_ok = football_api.equipos_coinciden(p_db.equipo_local, datos["equipo_local"])
@@ -386,8 +385,9 @@ def crear_app():
             if not por_api_id and not por_alias:
                 if es_finalizado:
                     sin_match.append(f"{datos['equipo_local']} vs {datos['equipo_visitante']}")
-                continue  # partido no registrado en DB, ignorar
+                continue
 
+            encontrados_en_db += 1
             fecha_dt = None
             if datos["fecha"]:
                 fecha_dt = datetime.fromisoformat(datos["fecha"].replace("Z", "+00:00"))
@@ -395,9 +395,10 @@ def crear_app():
             # Actualizar partido principal (con api_match_id)
             if por_api_id:
                 por_api_id.api_match_id = datos["api_match_id"]
-                if fecha_dt and not por_api_id.fecha:
-                    por_api_id.fecha = fecha_dt
-                    fechas_actualizadas += 1
+                if fecha_dt:
+                    if not por_api_id.fecha:
+                        fechas_actualizadas += 1
+                    por_api_id.fecha = fecha_dt  # siempre sobreescribir — la API es autoritativa
                 if es_finalizado:
                     por_api_id.marcador_local = ml
                     por_api_id.marcador_visitante = mv
@@ -413,9 +414,10 @@ def crear_app():
                     continue
                 if not partido.api_match_id:
                     partido.api_match_id = datos["api_match_id"]
-                if fecha_dt and not partido.fecha:
-                    partido.fecha = fecha_dt
-                    fechas_actualizadas += 1
+                if fecha_dt:
+                    if not partido.fecha:
+                        fechas_actualizadas += 1
+                    partido.fecha = fecha_dt  # siempre sobreescribir
                 if es_finalizado:
                     partido.marcador_local = ml
                     partido.marcador_visitante = mv
@@ -426,7 +428,7 @@ def crear_app():
                         predicciones_calificadas += 1
 
         db.session.commit()
-        return partidos_actualizados, predicciones_calificadas, fechas_actualizadas, sin_match, total_api
+        return partidos_actualizados, predicciones_calificadas, fechas_actualizadas, sin_match, total_api, encontrados_en_db
 
     # ---------- comandos CLI ----------
     @app.cli.command("init-db")
@@ -447,8 +449,8 @@ def crear_app():
         """Sincroniza resultados reales y recalcula puntos.
         Uso: flask --app app sync-resultados [jornada]
         Si no se pasa jornada, sincroniza TODAS las disponibles."""
-        partidos_act, preds_calif, fechas_act, sin_match, total_api = _sincronizar_resultados(jornada=jornada)
-        print(f"API: {total_api} partidos · {partidos_act} actualizados · {preds_calif} predicciones · {fechas_act} fechas nuevas.")
+        partidos_act, preds_calif, fechas_act, sin_match, total_api, encontrados = _sincronizar_resultados(jornada=jornada)
+        print(f"API: {total_api} partidos · encontrados en DB: {encontrados} · {partidos_act} actualizados · {preds_calif} predicciones · {fechas_act} fechas nuevas.")
         if sin_match:
             print("Sin match en DB:", ", ".join(sin_match))
 
@@ -637,17 +639,23 @@ def crear_app():
     @login_required
     def sync_jornada(jornada):
         try:
-            partidos_act, preds_calif, fechas_act, sin_match, total_api = _sincronizar_resultados(jornada=jornada)
+            partidos_act, preds_calif, fechas_act, sin_match, total_api, encontrados = _sincronizar_resultados(jornada=jornada)
             if total_api == 0:
                 flash(
                     "La API no devolvió partidos para esta jornada. "
                     "Verifica tu FOOTBALL_DATA_API_KEY o inténtalo más tarde.",
                     "error",
                 )
+            elif encontrados == 0:
+                flash(
+                    f"La API devolvió {total_api} partidos pero ninguno coincide con los nombres en tu DB. "
+                    "Revisa los nombres de equipo.",
+                    "error",
+                )
             elif partidos_act == 0 and fechas_act == 0:
                 flash(
-                    f"Calendario OK ({total_api} partidos en la API). "
-                    "Sin cambios pendientes — fechas ya cargadas, resultados aún no disponibles.",
+                    f"Calendario OK ({encontrados}/{total_api} partidos sincronizados). "
+                    "Sin cambios — fechas ya cargadas, resultados aún no disponibles.",
                     "success",
                 )
             elif partidos_act == 0:
