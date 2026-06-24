@@ -616,13 +616,24 @@ def crear_app():
     def sync_jornada(jornada):
         try:
             partidos_act, preds_calif = _sincronizar_resultados(jornada=jornada)
-            flash(
-                f"Listo: {partidos_act} partido(s) actualizados, "
-                f"{preds_calif} predicción(es) calificadas.",
-                "success",
-            )
+            if partidos_act == 0:
+                flash(
+                    "La API no devolvió partidos FINALIZADOS para esta jornada "
+                    "(o los nombres de equipo no coinciden con los de la API). "
+                    "Nada que actualizar todavía.",
+                    "error",
+                )
+            else:
+                flash(
+                    f"Listo: {partidos_act} partido(s) actualizados, "
+                    f"{preds_calif} predicción(es) calificadas.",
+                    "success",
+                )
         except football_api.FootballDataError as exc:
             flash(str(exc), "error")
+        except Exception as exc:
+            app.logger.exception("Error inesperado sincronizando jornada %s", jornada)
+            flash(f"Error inesperado al sincronizar: {exc}", "error")
         return redirect(url_for("ver_jornada", jornada=jornada))
 
     @app.route("/partido/<int:partido_id>/resultado", methods=["POST"])
