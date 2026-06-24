@@ -592,7 +592,9 @@ def crear_app():
 
     @app.route("/jornada/<int:jornada>")
     def ver_jornada(jornada):
-        partidos = Partido.query.filter_by(jornada=jornada).order_by(Partido.fecha).all()
+        partidos = Partido.query.filter_by(jornada=jornada).order_by(
+            db.text("fecha IS NULL"), Partido.fecha
+        ).all()
         jugadores = Jugador.query.order_by(Jugador.nombre).all()
 
         predicciones = {
