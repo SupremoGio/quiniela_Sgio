@@ -874,6 +874,21 @@ def crear_app():
             })
         return {"jugadores": data}
 
+    @app.route("/admin/diagnostico-jornada/<int:jornada>")
+    @login_required
+    def admin_diagnostico_jornada(jornada):
+        partidos = Partido.query.filter_by(jornada=jornada).order_by(Partido.equipo_local).all()
+        data = [{
+            "id": p.id,
+            "equipo_local": p.equipo_local,
+            "equipo_visitante": p.equipo_visitante,
+            "fecha": p.fecha.isoformat() if p.fecha else None,
+            "api_match_id": p.api_match_id,
+            "finalizado": p.finalizado,
+            "num_predicciones": len(p.predicciones),
+        } for p in partidos]
+        return {"jornada": jornada, "total": len(data), "partidos": data}
+
     @app.route("/admin/fix-duplicados", methods=["POST"])
     @login_required
     def fix_duplicados():
