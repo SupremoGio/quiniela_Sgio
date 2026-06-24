@@ -902,7 +902,10 @@ def crear_app():
                         if not keeper.fecha and other.fecha:
                             keeper.fecha = other.fecha
                         if not keeper.api_match_id and other.api_match_id:
-                            keeper.api_match_id = other.api_match_id
+                            api_id = other.api_match_id
+                            other.api_match_id = None   # libera UNIQUE antes de asignarlo
+                            db.session.flush()
+                            keeper.api_match_id = api_id
                         if not keeper.finalizado and other.finalizado:
                             keeper.marcador_local   = other.marcador_local
                             keeper.marcador_visitante = other.marcador_visitante
