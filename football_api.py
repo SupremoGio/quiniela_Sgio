@@ -97,6 +97,8 @@ _ALIAS_EQUIPO = {
     "egipto": ["egypt"],
     "nigeria": ["nigeria"],
     "ghana": ["ghana"],
+    "ghanna": ["ghana"],
+    "uzbequistan": ["uzbekistan"],
     "camerun": ["cameroon"],
     "senegal": ["senegal"],
     "mali": ["mali"],
