@@ -103,11 +103,13 @@
         {% endif %}
         <span class="pred-chip {{ chip_class }}">
           <span class="avatar" style="background:{{ avatar_color(jugador) }};width:18px;height:18px;font-size:9px;">{{ inicial(jugador) }}</span>
+          <span style="font-size:11px;font-family:var(--font-body);font-weight:600;">{{ jugador.nombre }}</span>
           <b>{{ pred.pred_local }}–{{ pred.pred_visitante }}</b>
         </span>
       {% else %}
         <span class="pred-chip" style="opacity:.4;">
           <span class="avatar" style="background:{{ avatar_color(jugador) }};width:18px;height:18px;font-size:9px;">{{ inicial(jugador) }}</span>
+          <span style="font-size:11px;font-family:var(--font-body);font-weight:600;">{{ jugador.nombre }}</span>
           <b>—</b>
         </span>
       {% endif %}
