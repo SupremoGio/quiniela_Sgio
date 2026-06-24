@@ -358,6 +358,7 @@ def crear_app():
         partidos_actualizados = 0
         predicciones_calificadas = 0
         fechas_actualizadas = 0
+        sin_match = []  # partidos FINISHED de la API sin equivalente en DB
 
         todos_en_db = Partido.query.all()
         for p in partidos_api:
@@ -381,6 +382,8 @@ def crear_app():
                     por_alias[p_db.id] = p_db
 
             if not por_api_id and not por_alias:
+                if es_finalizado:
+                    sin_match.append(f"{datos['equipo_local']} vs {datos['equipo_visitante']}")
                 continue  # partido no registrado en DB, ignorar
 
             fecha_dt = None
@@ -421,7 +424,7 @@ def crear_app():
                         predicciones_calificadas += 1
 
         db.session.commit()
-        return partidos_actualizados, predicciones_calificadas, fechas_actualizadas
+        return partidos_actualizados, predicciones_calificadas, fechas_actualizadas, sin_match
 
     # ---------- comandos CLI ----------
     @app.cli.command("init-db")
@@ -442,8 +445,10 @@ def crear_app():
         """Sincroniza resultados reales y recalcula puntos.
         Uso: flask --app app sync-resultados [jornada]
         Si no se pasa jornada, sincroniza TODAS las disponibles."""
-        partidos_act, preds_calif, fechas_act = _sincronizar_resultados(jornada=jornada)
+        partidos_act, preds_calif, fechas_act, sin_match = _sincronizar_resultados(jornada=jornada)
         print(f"{partidos_act} partido(s) actualizados, {preds_calif} predicción(es) calificadas, {fechas_act} fecha(s) nuevas.")
+        if sin_match:
+            print("Sin match en DB:", ", ".join(sin_match))
 
     # ---------- autenticación ----------
     @app.route("/login", methods=["GET", "POST"])
@@ -630,7 +635,7 @@ def crear_app():
     @login_required
     def sync_jornada(jornada):
         try:
-            partidos_act, preds_calif, fechas_act = _sincronizar_resultados(jornada=jornada)
+            partidos_act, preds_calif, fechas_act, sin_match = _sincronizar_resultados(jornada=jornada)
             if partidos_act == 0 and fechas_act == 0:
                 flash(
                     "La API no devolvió partidos para esta jornada "
@@ -647,6 +652,11 @@ def crear_app():
                     f"Listo: {partidos_act} partido(s) con resultado, "
                     f"{preds_calif} predicción(es) calificadas, {fechas_act} fecha(s) nuevas.",
                     "success",
+                )
+            if sin_match:
+                flash(
+                    "Sin match en DB (revisa el nombre de equipo): " + " · ".join(sin_match),
+                    "error",
                 )
         except football_api.FootballDataError as exc:
             flash(str(exc), "error")
