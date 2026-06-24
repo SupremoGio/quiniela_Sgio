@@ -83,10 +83,9 @@ def _guardar_prediccion_campeon(nombre_jugador, equipo):
 
 
 def _buscar_partido_insensible(jornada, eq_local, eq_visitante):
-    eq_local_norm = eq_local.strip().lower()
-    eq_visitante_norm = eq_visitante.strip().lower()
     for p in Partido.query.filter_by(jornada=jornada).all():
-        if p.equipo_local.strip().lower() == eq_local_norm and p.equipo_visitante.strip().lower() == eq_visitante_norm:
+        if (football_api.equipos_coinciden(p.equipo_local, eq_local)
+                and football_api.equipos_coinciden(p.equipo_visitante, eq_visitante)):
             return p
     return None
 
