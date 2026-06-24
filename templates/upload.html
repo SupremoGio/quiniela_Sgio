@@ -1,41 +1,65 @@
 {% extends "base.html" %}
-{% block title %}Subir predicciones{% endblock %}
+{% block title %}Subir predicciones — Quiniela Mundial 2026{% endblock %}
 {% block content %}
 
-<h2>Subir predicciones</h2>
-<p class="text-muted">
-  Se acepta cualquiera de estos dos formatos de Excel/CSV:
-</p>
+<h1 class="q-h1" style="font-size:clamp(20px,5vw,32px);margin-bottom:clamp(18px,3.4vw,26px);">Subir predicciones</h1>
+<p class="q-sub" style="margin-top:0;margin-bottom:clamp(18px,3.2vw,26px);">Se acepta cualquiera de estos dos formatos de Excel/CSV.</p>
 
-<h5>Formato largo</h5>
-<p class="text-muted">
-  Una fila por cada combinación jugador + partido, con estas columnas (en cualquier orden,
-  no distinguen mayúsculas):
-</p>
-<table class="table table-sm table-bordered w-auto">
-  <thead><tr><th>jornada</th><th>jugador</th><th>equipo_local</th><th>equipo_visitante</th><th>pred_local</th><th>pred_visitante</th></tr></thead>
-  <tbody>
-    <tr><td>1</td><td>Gio</td><td>Mexico</td><td>Sudafrica</td><td>2</td><td>1</td></tr>
-    <tr><td>1</td><td>Ana</td><td>Mexico</td><td>Sudafrica</td><td>1</td><td>1</td></tr>
-  </tbody>
-</table>
-<p class="text-muted small">
-  Para fases eliminatorias usa el número de fase: 4 = Dieciseisavos, 5 = Octavos,
-  6 = Cuartos, 7 = Semifinales, 8 = Final.
-</p>
+{# ── FORMATO LARGO ── #}
+<div style="margin-bottom:clamp(18px,3vw,26px);">
+  <h2 class="q-section-title" style="margin-bottom:8px;">Formato largo</h2>
+  <p style="font-family:var(--font-body);font-size:13px;color:var(--sub);margin:0 0 12px;">
+    Una fila por cada combinación jugador + partido, con estas columnas (en cualquier orden, sin distinción de mayúsculas):
+  </p>
+  <div style="overflow-x:auto;">
+    <div class="format-table">
+      <div class="th">jornada</div>
+      <div class="th">jugador</div>
+      <div class="th">equipo_local</div>
+      <div class="th">equipo_visitante</div>
+      <div class="th">pred_local</div>
+      <div class="th">pred_visitante</div>
+      <div class="td">1</div>
+      <div class="td">Gio</div>
+      <div class="td">Mexico</div>
+      <div class="td">Sudafrica</div>
+      <div class="td">2</div>
+      <div class="td">1</div>
+      <div class="td">1</div>
+      <div class="td">Ana</div>
+      <div class="td">Mexico</div>
+      <div class="td">Sudafrica</div>
+      <div class="td">1</div>
+      <div class="td">1</div>
+    </div>
+  </div>
+  <p style="font-family:var(--font-body);font-size:12px;color:var(--sub);margin:10px 0 0;">
+    Para fases eliminatorias usa el número de fase: 4 = Dieciseisavos, 5 = Octavos, 6 = Cuartos, 7 = Semifinales, 8 = Final.
+  </p>
+</div>
 
-<h5>Formato ancho (por pares de equipos)</h5>
-<p class="text-muted">
-  Una fila por jugador. La primera columna es el nombre, la segunda se ignora (ej. "Campeón"),
-  y las siguientes columnas son los equipos en pares: cada dos columnas consecutivas forman un
-  partido (equipo_local, equipo_visitante). El valor de cada celda es el marcador predicho para
-  ese equipo; usa <code>o</code> para 0 goles. Selecciona la fase en el desplegable de abajo.
-</p>
+{# ── FORMATO ANCHO ── #}
+<div style="margin-bottom:clamp(22px,3.6vw,32px);">
+  <h2 class="q-section-title" style="margin-bottom:8px;">Formato ancho (por pares de equipos)</h2>
+  <p style="font-family:var(--font-body);font-size:13px;color:var(--sub);margin:0;">
+    Una fila por jugador. La primera columna es el nombre, la segunda se ignora (ej. "Campeón"),
+    y las siguientes columnas son los equipos en pares: cada dos columnas forman un partido
+    (local, visitante). El valor de cada celda es el marcador predicho; usa
+    <code style="font-family:var(--font-head);background:var(--chip);padding:1px 6px;border-radius:4px;font-size:12px;">o</code>
+    para 0 goles. Selecciona la fase en el desplegable de abajo.
+  </p>
+</div>
 
-<form method="post" enctype="multipart/form-data" class="mt-4">
-  <div class="mb-3">
-    <label class="form-label fw-semibold">Fase del torneo</label>
-    <select class="form-select" style="max-width:360px" name="jornada">
+{# ── FORMULARIO ── #}
+<form method="post" enctype="multipart/form-data">
+
+  {# Selector de fase #}
+  <div style="margin-bottom:clamp(14px,2.8vw,22px);">
+    <label style="display:block;font-family:var(--font-head);font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--sub);margin-bottom:8px;">
+      Fase del torneo
+    </label>
+    <select name="jornada"
+            style="background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-sm);padding:10px 14px;font-family:var(--font-body);font-size:14px;font-weight:600;max-width:380px;width:100%;cursor:pointer;outline:none;">
       <option value="">— selecciona una fase —</option>
       <optgroup label="Fase de Grupos">
         <option value="1">Jornada 1</option>
@@ -50,16 +74,32 @@
         <option value="8">Final (y 3er lugar)</option>
       </optgroup>
     </select>
-    <div class="form-text">
+    <p style="font-family:var(--font-body);font-size:12px;color:var(--sub);margin:7px 0 0;">
       Solo necesario para el formato ancho. En el formato largo la columna
-      <code>jornada</code> del archivo determina la fase.
-    </div>
+      <code style="font-family:var(--font-head);background:var(--chip);padding:1px 5px;border-radius:4px;font-size:11px;">jornada</code>
+      del archivo determina la fase.
+    </p>
   </div>
-  <div class="mb-3">
-    <label class="form-label fw-semibold">Archivo Excel o CSV</label>
-    <input class="form-control" style="max-width:360px" type="file" name="archivo" accept=".xlsx,.xls,.csv" required>
+
+  {# Zona de carga #}
+  <div style="margin-bottom:clamp(18px,3vw,26px);">
+    <label style="display:block;font-family:var(--font-head);font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--sub);margin-bottom:8px;">
+      Archivo Excel o CSV
+    </label>
+    <label class="upload-zone" style="cursor:pointer;display:block;max-width:480px;">
+      <div class="ico">📂</div>
+      <div id="upload-filename"
+           style="font-family:var(--font-head);font-weight:600;font-size:15px;letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px;">
+        Seleccionar archivo
+      </div>
+      <div style="font-family:var(--font-body);font-size:13px;color:var(--sub);">.xlsx · .xls · .csv</div>
+      <input type="file" name="archivo" accept=".xlsx,.xls,.csv" required style="display:none;"
+             onchange="document.getElementById('upload-filename').textContent = this.files[0]?.name || 'Seleccionar archivo'">
+    </label>
   </div>
-  <button class="btn btn-primary" type="submit">Subir e importar</button>
+
+  <button class="btn-accent" type="submit">↑ Subir e importar</button>
+
 </form>
 
 {% endblock %}

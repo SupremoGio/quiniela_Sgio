@@ -2,82 +2,120 @@
 {% block title %}{{ FASES_MUNDIAL.get(jornada, 'Jornada ' ~ jornada) }} — Quiniela Mundial 2026{% endblock %}
 {% block content %}
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h2 class="mb-0">{{ FASES_MUNDIAL.get(jornada, 'Jornada ' ~ jornada) }}</h2>
-  <div class="d-flex gap-2">
-    <select class="form-select form-select-sm" style="width:auto" onchange="window.location.href='/jornada/'+this.value">
+{# ── ENCABEZADO DE FASE ── #}
+<div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:clamp(18px,3.4vw,26px);">
+  <h1 class="q-h1" style="font-size:clamp(18px,5vw,32px);letter-spacing:.02em;">
+    {{ FASES_MUNDIAL.get(jornada, 'Jornada ' ~ jornada) }}
+  </h1>
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+    <select onchange="window.location.href='/jornada/'+this.value"
+            style="background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 12px;font-family:var(--font-body);font-size:13px;font-weight:600;cursor:pointer;outline:none;">
       {% for j in jornadas %}
         <option value="{{ j }}" {% if j == jornada %}selected{% endif %}>{{ FASES_MUNDIAL.get(j, 'Jornada ' ~ j) }}</option>
       {% endfor %}
     </select>
     {% if current_user.is_authenticated %}
     <form method="post" action="{{ url_for('sync_jornada', jornada=jornada) }}">
-      <button class="btn btn-primary btn-sm" type="submit">↻ Actualizar resultados</button>
+      <button class="btn-accent" type="submit" style="padding:9px 16px;font-size:12px;">↻ Actualizar</button>
     </form>
     {% set fase_nombre = FASES_MUNDIAL.get(jornada, 'Jornada ' ~ jornada) %}
     <form method="post" action="{{ url_for('eliminar_jornada', jornada=jornada) }}"
           onsubmit="return confirm('¿Seguro que quieres borrar TODOS los partidos y predicciones de {{ fase_nombre }}? Esto no se puede deshacer.');">
-      <button class="btn btn-outline-danger btn-sm" type="submit">🗑 Borrar fase</button>
+      <button class="btn-ghost" type="submit"
+              style="padding:9px 16px;font-size:12px;color:var(--red);border-color:color-mix(in srgb,var(--red) 35%,transparent);">
+        🗑 Borrar fase
+      </button>
     </form>
     {% endif %}
   </div>
 </div>
 
 {% if not partidos %}
-  <p class="text-muted">No hay partidos cargados para esta jornada todavía.</p>
+  <p style="color:var(--sub);font-family:var(--font-body);font-size:15px;">No hay partidos cargados para esta jornada todavía.</p>
 {% endif %}
 
+{# ── CARDS DE PARTIDOS ── #}
+<div style="display:flex;flex-direction:column;gap:clamp(12px,2.5vw,16px);">
 {% for partido in partidos %}
-<div class="card mb-3">
-  <div class="card-header d-flex justify-content-between align-items-center">
-    <div>
-      <span><strong>{{ partido.equipo_local }}</strong> vs <strong>{{ partido.equipo_visitante }}</strong></span>
+<div class="match-card">
+
+  {# Fila superior: fecha/fase + estado #}
+  <div class="match-card__top">
+    <span class="match-card__group">
       {% if partido.fecha %}
-        <div class="text-muted small mt-1">
-          📅 {{ partido.fecha | guadalajara }} (Guadalajara)
-        </div>
-      {% endif %}
-    </div>
-    <span class="d-flex align-items-center gap-2">
-      {% if partido.finalizado %}
-        <span class="badge bg-success">{{ partido.marcador_local }} - {{ partido.marcador_visitante }}</span>
-      {% elif current_user.is_authenticated %}
-        <span class="badge bg-secondary">Pendiente</span>
-        <form method="post" action="{{ url_for('set_resultado', partido_id=partido.id) }}" class="d-flex gap-1 align-items-center">
-          <input type="number" name="marcador_local" min="0" max="20" placeholder="L" class="form-control form-control-sm" style="width:50px" required>
-          <span>-</span>
-          <input type="number" name="marcador_visitante" min="0" max="20" placeholder="V" class="form-control form-control-sm" style="width:50px" required>
-          <button type="submit" class="btn btn-success btn-sm">✓</button>
-        </form>
+        📅 {{ partido.fecha | guadalajara }}
       {% else %}
-        <span class="badge bg-secondary">Pendiente</span>
+        {{ FASES_CORTAS.get(jornada, 'J' ~ jornada) }}
       {% endif %}
     </span>
+    {% if partido.finalizado %}
+      <span class="match-card__status">Finalizado</span>
+    {% else %}
+      <span style="font-family:var(--font-head);font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--sub);">Pendiente</span>
+    {% endif %}
   </div>
-  <div class="table-responsive">
-    <table class="table table-sm mb-0">
-      <thead>
-        <tr><th>Jugador</th><th class="text-center">Predicción</th><th class="text-center">Puntos</th></tr>
-      </thead>
-      <tbody>
-        {% for jugador in jugadores %}
-          {% set pred = predicciones.get((jugador.id, partido.id)) %}
-          <tr>
-            <td>{{ jugador.nombre }}</td>
-            <td class="text-center">
-              {% if pred %}{{ pred.pred_local }} - {{ pred.pred_visitante }}{% else %}<span class="text-muted">sin predicción</span>{% endif %}
-            </td>
-            <td class="text-center">
-              {% if pred and pred.puntos is not none %}
-                <span class="badge {{ 'bg-success' if pred.puntos == 3 else ('bg-warning text-dark' if pred.puntos == 1 else 'bg-light text-dark') }}">{{ pred.puntos }}</span>
-              {% else %}—{% endif %}
-            </td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+
+  {# Equipos y marcador #}
+  <div class="match-card__teams">
+    <div class="match-card__side local">
+      <b>{{ partido.equipo_local }}</b>
+    </div>
+    <div class="match-card__score">
+      {% if partido.finalizado %}
+        {{ partido.marcador_local }}<s>–</s>{{ partido.marcador_visitante }}
+      {% else %}
+        <s>?</s><s>–</s><s>?</s>
+      {% endif %}
+    </div>
+    <div class="match-card__side">
+      <b>{{ partido.equipo_visitante }}</b>
+    </div>
   </div>
+
+  {# Formulario para ingresar resultado (solo si pendiente y admin) #}
+  {% if not partido.finalizado and current_user.is_authenticated %}
+  <form method="post" action="{{ url_for('set_resultado', partido_id=partido.id) }}"
+        style="display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap;">
+    <input type="number" name="marcador_local" min="0" max="20" placeholder="L"
+           style="width:54px;text-align:center;background:var(--bg2);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 6px;font-family:var(--font-head);font-weight:700;font-size:16px;outline:none;"
+           required>
+    <span style="font-family:var(--font-head);font-weight:700;font-size:16px;color:var(--sub);">–</span>
+    <input type="number" name="marcador_visitante" min="0" max="20" placeholder="V"
+           style="width:54px;text-align:center;background:var(--bg2);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 6px;font-family:var(--font-head);font-weight:700;font-size:16px;outline:none;"
+           required>
+    <button class="btn-accent" type="submit" style="padding:9px 16px;font-size:12px;">✓ Guardar resultado</button>
+  </form>
+  {% endif %}
+
+  <div class="match-card__divider"></div>
+
+  {# Predicciones de todos los jugadores #}
+  <div class="pred-list">
+    {% for jugador in jugadores %}
+      {% set pred = predicciones.get((jugador.id, partido.id)) %}
+      {% if pred %}
+        {% if pred.puntos == 3 %}
+          {% set chip_class = 'is-exact' %}
+        {% elif pred.puntos == 1 %}
+          {% set chip_class = 'is-result' %}
+        {% else %}
+          {% set chip_class = '' %}
+        {% endif %}
+        <span class="pred-chip {{ chip_class }}">
+          <span class="avatar" style="background:{{ avatar_color(jugador) }};width:18px;height:18px;font-size:9px;">{{ inicial(jugador) }}</span>
+          <b>{{ pred.pred_local }}–{{ pred.pred_visitante }}</b>
+        </span>
+      {% else %}
+        <span class="pred-chip" style="opacity:.4;">
+          <span class="avatar" style="background:{{ avatar_color(jugador) }};width:18px;height:18px;font-size:9px;">{{ inicial(jugador) }}</span>
+          <b>—</b>
+        </span>
+      {% endif %}
+    {% endfor %}
+  </div>
+
 </div>
 {% endfor %}
+</div>
 
 {% endblock %}
