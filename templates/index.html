@@ -74,6 +74,33 @@
 </div>
 {% endif %}
 
+{# ── FASES DEL TORNEO ── #}
+{% if not jornada_sel and jornadas %}
+<div style="margin-bottom:clamp(20px,3.6vw,28px);">
+  <p class="q-section-title">Fases del torneo</p>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;">
+    {% for j in jornadas %}
+    <a href="{{ url_for('ver_jornada', jornada=j) }}"
+       style="display:inline-flex;align-items:center;gap:7px;padding:10px 16px;
+              background:var(--surface);border:1px solid var(--line);border-radius:11px;
+              font-family:var(--font-head);font-weight:600;font-size:13px;letter-spacing:.04em;
+              text-transform:uppercase;color:var(--ink);text-decoration:none;
+              transition:box-shadow .15s;">
+      {{ FASES_MUNDIAL.get(j, 'Jornada ' ~ j) }}
+      <span style="background:var(--chip);color:var(--sub);border-radius:99px;
+                   padding:2px 8px;font-size:11px;font-family:var(--font-body);font-weight:700;">
+        {{ partidos_por_jornada[j] }}
+      </span>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% elif not jornadas %}
+<p style="margin-top:20px;color:var(--sub);font-family:var(--font-body);font-size:14px;">
+  Aún no hay partidos. Usa <strong>↻ Sincronizar</strong> para traer el calendario desde la API.
+</p>
+{% endif %}
+
 {% if not tabla %}
   <p style="color:var(--sub);font-family:var(--font-body);">
     Todavía no hay jugadores ni predicciones.
@@ -198,32 +225,5 @@
 </section>
 
 {% endif %}{# /if tabla #}
-
-{# ── FASES DEL TORNEO ── #}
-{% if not jornada_sel and jornadas %}
-<div style="margin-top:clamp(24px,4vw,32px);">
-  <p class="q-section-title">Fases del torneo</p>
-  <div style="display:flex;flex-wrap:wrap;gap:8px;">
-    {% for j in jornadas %}
-    <a href="{{ url_for('ver_jornada', jornada=j) }}"
-       style="display:inline-flex;align-items:center;gap:7px;padding:10px 16px;
-              background:var(--surface);border:1px solid var(--line);border-radius:11px;
-              font-family:var(--font-head);font-weight:600;font-size:13px;letter-spacing:.04em;
-              text-transform:uppercase;color:var(--ink);text-decoration:none;
-              transition:box-shadow .15s;" >
-      {{ FASES_MUNDIAL.get(j, 'Jornada ' ~ j) }}
-      <span style="background:var(--chip);color:var(--sub);border-radius:99px;
-                   padding:2px 8px;font-size:11px;font-family:var(--font-body);font-weight:700;">
-        {{ partidos_por_jornada[j] }}
-      </span>
-    </a>
-    {% endfor %}
-  </div>
-</div>
-{% elif not jornadas %}
-<p style="margin-top:20px;color:var(--sub);font-family:var(--font-body);font-size:14px;">
-  Aún no hay partidos. Usa <strong>↻ Sincronizar</strong> para traer el calendario desde la API.
-</p>
-{% endif %}
 
 {% endblock %}
