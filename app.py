@@ -297,7 +297,7 @@ def crear_app():
     # ---------- helpers internos ----------
     def _tomar_snapshot():
         """Guarda un snapshot del ranking actual para calcular movimiento ▲▼."""
-        jugadores_all = Jugador.query.all()
+        jugadores_all = Jugador.query.order_by(Jugador.nombre).all()
         preds_camp = {pc.jugador_id: pc for pc in PrediccionCampeon.query.all()}
         pts_map = {}
         for j in jugadores_all:
