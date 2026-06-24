@@ -72,6 +72,21 @@
     </div>
   </div>
 
+  {% if current_user.is_authenticated %}
+  <details style="margin-top:8px;">
+    <summary style="cursor:pointer;font-size:11px;color:var(--sub);">✎ corregir nombres de equipo</summary>
+    <form method="post" action="{{ url_for('renombrar_equipos', partido_id=partido.id) }}"
+          style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;">
+      <input type="text" name="equipo_local" value="{{ partido.equipo_local }}" required
+             style="background:var(--bg2);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 10px;font-family:var(--font-body);font-size:13px;outline:none;">
+      <span style="color:var(--sub);">vs</span>
+      <input type="text" name="equipo_visitante" value="{{ partido.equipo_visitante }}" required
+             style="background:var(--bg2);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 10px;font-family:var(--font-body);font-size:13px;outline:none;">
+      <button class="btn-ghost" type="submit" style="padding:8px 14px;font-size:12px;">Guardar</button>
+    </form>
+  </details>
+  {% endif %}
+
   {# Formulario para ingresar resultado (solo si pendiente y admin) #}
   {% if not partido.finalizado and current_user.is_authenticated %}
   <form method="post" action="{{ url_for('set_resultado', partido_id=partido.id) }}"

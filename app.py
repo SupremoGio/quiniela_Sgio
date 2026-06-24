@@ -730,6 +730,21 @@ def crear_app():
         flash(f"Resultado guardado: {partido.equipo_local} {ml} - {mv} {partido.equipo_visitante}", "success")
         return redirect(url_for("ver_jornada", jornada=partido.jornada))
 
+    @app.route("/partido/<int:partido_id>/renombrar-equipos", methods=["POST"])
+    @login_required
+    def renombrar_equipos(partido_id):
+        partido = Partido.query.get_or_404(partido_id)
+        eq_local = request.form.get("equipo_local", "").strip()
+        eq_visitante = request.form.get("equipo_visitante", "").strip()
+        if not eq_local or not eq_visitante:
+            flash("Los nombres de equipo no pueden estar vacíos.", "error")
+            return redirect(url_for("ver_jornada", jornada=partido.jornada))
+        partido.equipo_local = eq_local
+        partido.equipo_visitante = eq_visitante
+        db.session.commit()
+        flash(f"Renombrado: {eq_local} vs {eq_visitante}. Ahora corre \"Fix duplicados\" si aplica.", "success")
+        return redirect(url_for("ver_jornada", jornada=partido.jornada))
+
     @app.route("/jornada/<int:jornada>/eliminar", methods=["POST"])
     @login_required
     def eliminar_jornada(jornada):
