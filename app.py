@@ -384,9 +384,15 @@ def crear_app():
             if not por_api_id and not por_alias:
                 continue  # partido no registrado en DB, ignorar
 
+            fecha_dt = None
+            if datos["fecha"]:
+                fecha_dt = datetime.fromisoformat(datos["fecha"].replace("Z", "+00:00"))
+
             # Actualizar partido principal (con api_match_id)
             if por_api_id:
                 por_api_id.api_match_id = datos["api_match_id"]
+                if fecha_dt and not por_api_id.fecha:
+                    por_api_id.fecha = fecha_dt
                 por_api_id.marcador_local = ml
                 por_api_id.marcador_visitante = mv
                 por_api_id.finalizado = True
@@ -395,10 +401,14 @@ def crear_app():
                     pred.puntos = calcular_puntos(pred.pred_local, pred.pred_visitante, ml, mv)
                     predicciones_calificadas += 1
 
-            # Actualizar partidos con nombre alternativo (sin tocar api_match_id para evitar UNIQUE)
+            # Actualizar partidos encontrados por alias (nombre en español u otra variante)
             for partido in por_alias.values():
                 if por_api_id and partido.id == por_api_id.id:
                     continue
+                if not partido.api_match_id:
+                    partido.api_match_id = datos["api_match_id"]
+                if fecha_dt and not partido.fecha:
+                    partido.fecha = fecha_dt
                 partido.marcador_local = ml
                 partido.marcador_visitante = mv
                 partido.finalizado = True
