@@ -875,6 +875,61 @@ def crear_app():
             })
         return {"jugadores": data}
 
+    @app.route("/admin/fix-duplicados", methods=["POST"])
+    @login_required
+    def fix_duplicados():
+        """Fusiona pares de partidos duplicados (español + inglés) en cada jornada."""
+        todos = Partido.query.all()
+        fusionados = 0
+
+        jornadas_set = sorted({p.jornada for p in todos})
+        for jn in jornadas_set:
+            partidos_jn = [p for p in todos if p.jornada == jn]
+            procesados = set()
+
+            for p1 in partidos_jn:
+                if p1.id in procesados:
+                    continue
+                for p2 in partidos_jn:
+                    if p2.id == p1.id or p2.id in procesados:
+                        continue
+                    if (football_api.equipos_coinciden(p1.equipo_local, p2.equipo_local)
+                            and football_api.equipos_coinciden(p1.equipo_visitante, p2.equipo_visitante)):
+                        # Keeper = el que tiene predicciones; other = el vacío
+                        keeper = p1 if len(p1.predicciones) >= len(p2.predicciones) else p2
+                        other  = p2 if keeper is p1 else p1
+
+                        if not keeper.fecha and other.fecha:
+                            keeper.fecha = other.fecha
+                        if not keeper.api_match_id and other.api_match_id:
+                            keeper.api_match_id = other.api_match_id
+                        if not keeper.finalizado and other.finalizado:
+                            keeper.marcador_local   = other.marcador_local
+                            keeper.marcador_visitante = other.marcador_visitante
+                            keeper.finalizado = True
+                            for pred in keeper.predicciones:
+                                pred.puntos = calcular_puntos(
+                                    pred.pred_local, pred.pred_visitante,
+                                    keeper.marcador_local, keeper.marcador_visitante)
+
+                        for pred in list(other.predicciones):
+                            existe = Prediccion.query.filter_by(
+                                jugador_id=pred.jugador_id, partido_id=keeper.id).first()
+                            if existe:
+                                db.session.delete(pred)
+                            else:
+                                pred.partido_id = keeper.id
+
+                        db.session.delete(other)
+                        procesados.add(other.id)
+                        fusionados += 1
+                        break
+                procesados.add(p1.id)
+
+        db.session.commit()
+        flash(f"Duplicados fusionados: {fusionados} par(es) eliminados.", "success")
+        return redirect(url_for("index"))
+
     @app.route("/jugador/<int:jugador_id>")
     def detalle_jugador(jugador_id):
         jugador = Jugador.query.get_or_404(jugador_id)

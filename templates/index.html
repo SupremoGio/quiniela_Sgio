@@ -22,6 +22,10 @@
     <form method="post" action="{{ url_for('sync_calendario') }}">
       <button class="btn-ghost" type="submit">↻ Sincronizar</button>
     </form>
+    <form method="post" action="{{ url_for('fix_duplicados') }}"
+          onsubmit="return confirm('¿Fusionar partidos duplicados (inglés/español)?');">
+      <button class="btn-ghost" type="submit" style="font-size:12px;">🔧 Fix duplicados</button>
+    </form>
     {% elif campeon_real %}
     <span class="btn-ghost" style="cursor:default;">🏆 {{ campeon_real }}</span>
     {% endif %}
