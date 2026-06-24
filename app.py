@@ -353,20 +353,19 @@ def crear_app():
         return creados, actualizados
 
     def _sincronizar_resultados(jornada=None):
-        """Actualiza marcadores reales de partidos FINISHED y recalcula
-        los puntos de las predicciones asociadas."""
+        """Actualiza fechas para todos los partidos y marcadores/puntos para los FINISHED."""
         partidos_api = football_api.obtener_partidos(jornada=jornada)
         partidos_actualizados = 0
         predicciones_calificadas = 0
+        fechas_actualizadas = 0
 
         todos_en_db = Partido.query.all()
         for p in partidos_api:
             datos = football_api.extraer_resultado(p)
-            if datos["estado"] != "FINISHED":
-                continue
             if not datos["jornada"] or not datos["equipo_local"] or not datos["equipo_visitante"]:
                 continue
 
+            es_finalizado = datos["estado"] == "FINISHED"
             ml = datos["marcador_local"]
             mv = datos["marcador_visitante"]
 
@@ -393,13 +392,15 @@ def crear_app():
                 por_api_id.api_match_id = datos["api_match_id"]
                 if fecha_dt and not por_api_id.fecha:
                     por_api_id.fecha = fecha_dt
-                por_api_id.marcador_local = ml
-                por_api_id.marcador_visitante = mv
-                por_api_id.finalizado = True
-                partidos_actualizados += 1
-                for pred in por_api_id.predicciones:
-                    pred.puntos = calcular_puntos(pred.pred_local, pred.pred_visitante, ml, mv)
-                    predicciones_calificadas += 1
+                    fechas_actualizadas += 1
+                if es_finalizado:
+                    por_api_id.marcador_local = ml
+                    por_api_id.marcador_visitante = mv
+                    por_api_id.finalizado = True
+                    partidos_actualizados += 1
+                    for pred in por_api_id.predicciones:
+                        pred.puntos = calcular_puntos(pred.pred_local, pred.pred_visitante, ml, mv)
+                        predicciones_calificadas += 1
 
             # Actualizar partidos encontrados por alias (nombre en español u otra variante)
             for partido in por_alias.values():
@@ -409,16 +410,18 @@ def crear_app():
                     partido.api_match_id = datos["api_match_id"]
                 if fecha_dt and not partido.fecha:
                     partido.fecha = fecha_dt
-                partido.marcador_local = ml
-                partido.marcador_visitante = mv
-                partido.finalizado = True
-                partidos_actualizados += 1
-                for pred in partido.predicciones:
-                    pred.puntos = calcular_puntos(pred.pred_local, pred.pred_visitante, ml, mv)
-                    predicciones_calificadas += 1
+                    fechas_actualizadas += 1
+                if es_finalizado:
+                    partido.marcador_local = ml
+                    partido.marcador_visitante = mv
+                    partido.finalizado = True
+                    partidos_actualizados += 1
+                    for pred in partido.predicciones:
+                        pred.puntos = calcular_puntos(pred.pred_local, pred.pred_visitante, ml, mv)
+                        predicciones_calificadas += 1
 
         db.session.commit()
-        return partidos_actualizados, predicciones_calificadas
+        return partidos_actualizados, predicciones_calificadas, fechas_actualizadas
 
     # ---------- comandos CLI ----------
     @app.cli.command("init-db")
@@ -439,8 +442,8 @@ def crear_app():
         """Sincroniza resultados reales y recalcula puntos.
         Uso: flask --app app sync-resultados [jornada]
         Si no se pasa jornada, sincroniza TODAS las disponibles."""
-        partidos_act, preds_calif = _sincronizar_resultados(jornada=jornada)
-        print(f"{partidos_act} partido(s) actualizados, {preds_calif} predicción(es) calificadas.")
+        partidos_act, preds_calif, fechas_act = _sincronizar_resultados(jornada=jornada)
+        print(f"{partidos_act} partido(s) actualizados, {preds_calif} predicción(es) calificadas, {fechas_act} fecha(s) nuevas.")
 
     # ---------- autenticación ----------
     @app.route("/login", methods=["GET", "POST"])
@@ -627,18 +630,22 @@ def crear_app():
     @login_required
     def sync_jornada(jornada):
         try:
-            partidos_act, preds_calif = _sincronizar_resultados(jornada=jornada)
-            if partidos_act == 0:
+            partidos_act, preds_calif, fechas_act = _sincronizar_resultados(jornada=jornada)
+            if partidos_act == 0 and fechas_act == 0:
                 flash(
-                    "La API no devolvió partidos FINALIZADOS para esta jornada "
-                    "(o los nombres de equipo no coinciden con los de la API). "
-                    "Nada que actualizar todavía.",
+                    "La API no devolvió partidos para esta jornada "
+                    "(o los nombres de equipo no coinciden con los de la API).",
                     "error",
+                )
+            elif partidos_act == 0:
+                flash(
+                    f"Fechas actualizadas ({fechas_act} partido(s)). Aún no hay resultados finalizados.",
+                    "success",
                 )
             else:
                 flash(
-                    f"Listo: {partidos_act} partido(s) actualizados, "
-                    f"{preds_calif} predicción(es) calificadas.",
+                    f"Listo: {partidos_act} partido(s) con resultado, "
+                    f"{preds_calif} predicción(es) calificadas, {fechas_act} fecha(s) nuevas.",
                     "success",
                 )
         except football_api.FootballDataError as exc:
