@@ -90,12 +90,12 @@
         <td style="padding:9px 10px;font-weight:600;">
           {{ pred.partido.equipo_local }} <span style="color:var(--sub);font-weight:400;">vs</span> {{ pred.partido.equipo_visitante }}
         </td>
-        <td style="padding:9px 6px;text-align:center;font-family:var(--font-head);font-weight:600;font-size:15px;">
-          {{ pred.pred_local }} – {{ pred.pred_visitante }}
+        <td style="padding:9px 6px;text-align:center;font-family:var(--font-head);font-weight:600;font-size:15px;white-space:nowrap;">
+          <span style="display:inline-flex;align-items:center;gap:5px;">{{ pred.pred_local }}<span style="color:var(--sub);">–</span>{{ pred.pred_visitante }}</span>
         </td>
-        <td style="padding:9px 6px;text-align:center;font-family:var(--font-head);font-size:15px;color:var(--sub);">
+        <td style="padding:9px 6px;text-align:center;font-family:var(--font-head);font-size:15px;color:var(--sub);white-space:nowrap;">
           {% if pred.partido.finalizado %}
-            {{ pred.partido.marcador_local }} – {{ pred.partido.marcador_visitante }}
+            <span style="display:inline-flex;align-items:center;gap:5px;">{{ pred.partido.marcador_local }}<span>–</span>{{ pred.partido.marcador_visitante }}</span>
           {% else %}—{% endif %}
         </td>
         <td style="padding:9px 6px;text-align:center;">
