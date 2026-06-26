@@ -15,6 +15,7 @@ Para correrlo localmente:
     flask --app app run --debug
 """
 import hmac
+import io
 import os
 import re
 from datetime import datetime, timedelta
@@ -23,7 +24,7 @@ from zoneinfo import ZoneInfo
 import click
 import pandas as pd
 from dotenv import load_dotenv
-from flask import Flask, flash, redirect, render_template, request, url_for
+from flask import Flask, flash, redirect, render_template, request, send_file, url_for
 from flask_login import (
     LoginManager,
     UserMixin,
@@ -312,6 +313,95 @@ def crear_app():
                                             puntos=pts_map[j.id], tomado_en=now))
         db.session.flush()
 
+    def _calcular_analisis_avanzado():
+        """Métricas de analista de datos sobre todas las predicciones calificadas:
+        por jugador (sesgo de marcador, racha, empates), por equipo (en cuáles
+        falla más la gente) y por jornada (dificultad promedio)."""
+        predicciones = (
+            Prediccion.query.join(Partido)
+            .filter(Partido.finalizado.is_(True))
+            .all()
+        )
+
+        por_jugador = {}
+        por_equipo = {}
+        por_jornada = {}
+
+        for pred in predicciones:
+            p = pred.partido
+            pts = pred.puntos or 0
+
+            j = por_jugador.setdefault(pred.jugador_id, {
+                "jugador": pred.jugador,
+                "total": 0, "puntos": 0, "exactos": 0, "resultado": 0, "fallos": 0,
+                "empates_predichos": 0, "empates_acertados": 0,
+                "goles_predichos": 0, "goles_reales": 0,
+            })
+            j["total"] += 1
+            j["puntos"] += pts
+            if pts == 3:
+                j["exactos"] += 1
+            elif pts == 1:
+                j["resultado"] += 1
+            else:
+                j["fallos"] += 1
+            if pred.pred_local == pred.pred_visitante:
+                j["empates_predichos"] += 1
+                if p.marcador_local == p.marcador_visitante:
+                    j["empates_acertados"] += 1
+            j["goles_predichos"] += pred.pred_local + pred.pred_visitante
+            j["goles_reales"] += p.marcador_local + p.marcador_visitante
+
+            for equipo in (p.equipo_local, p.equipo_visitante):
+                e = por_equipo.setdefault(equipo, {"equipo": equipo, "total": 0, "fallos": 0, "exactos": 0})
+                e["total"] += 1
+                if pts == 0:
+                    e["fallos"] += 1
+                elif pts == 3:
+                    e["exactos"] += 1
+
+            jn = por_jornada.setdefault(p.jornada, {"jornada": p.jornada, "total": 0, "puntos": 0})
+            jn["total"] += 1
+            jn["puntos"] += pts
+
+        jugadores_out = []
+        for d in por_jugador.values():
+            total = d["total"]
+            jugadores_out.append({
+                "jugador": d["jugador"],
+                "puntos": d["puntos"],
+                "exactos": d["exactos"],
+                "resultado": d["resultado"],
+                "fallos": d["fallos"],
+                "pct_acierto": round((d["exactos"] + d["resultado"]) / total * 100, 1) if total else 0,
+                "promedio": round(d["puntos"] / total, 2) if total else 0,
+                "empates_predichos": d["empates_predichos"],
+                "empates_acertados": d["empates_acertados"],
+                "sesgo_goles": round((d["goles_predichos"] - d["goles_reales"]) / total, 2) if total else 0,
+            })
+        jugadores_out.sort(key=lambda x: x["puntos"], reverse=True)
+
+        equipos_out = []
+        for d in por_equipo.values():
+            total = d["total"]
+            equipos_out.append({
+                "equipo": d["equipo"],
+                "total_predicciones": total,
+                "pct_fallo": round(d["fallos"] / total * 100, 1) if total else 0,
+                "pct_exacto": round(d["exactos"] / total * 100, 1) if total else 0,
+            })
+        equipos_out.sort(key=lambda x: x["pct_fallo"], reverse=True)
+
+        jornadas_out = []
+        for d in sorted(por_jornada.values(), key=lambda x: x["jornada"]):
+            total = d["total"]
+            jornadas_out.append({
+                "jornada": d["jornada"],
+                "promedio_puntos": round(d["puntos"] / total, 2) if total else 0,
+            })
+
+        return jugadores_out, equipos_out, jornadas_out
+
     def _sincronizar_calendario():
         """Trae el calendario completo (104 partidos) desde la API y
         crea/actualiza los registros de Partido. Si la API ya marca un
@@ -571,6 +661,86 @@ def crear_app():
             mas_faciles=mas_faciles,
             campeon_real=campeon_real,
             picks_ranking=picks_ranking,
+        )
+
+    @app.route("/data")
+    @login_required
+    def data_dashboard():
+        jugadores_stats, equipos_stats, jornadas_stats = _calcular_analisis_avanzado()
+        return render_template(
+            "data.html",
+            jugadores_stats=jugadores_stats,
+            equipos_stats=equipos_stats,
+            jornadas_stats=jornadas_stats,
+        )
+
+    @app.route("/data/export.xlsx")
+    @login_required
+    def data_export():
+        predicciones = (
+            Prediccion.query.join(Partido).join(Jugador)
+            .order_by(Partido.jornada, Partido.equipo_local, Jugador.nombre)
+            .all()
+        )
+        filas_predicciones = [{
+            "jornada": pred.partido.jornada,
+            "jugador": pred.jugador.nombre,
+            "equipo_local": pred.partido.equipo_local,
+            "equipo_visitante": pred.partido.equipo_visitante,
+            "pred_local": pred.pred_local,
+            "pred_visitante": pred.pred_visitante,
+            "marcador_local_real": pred.partido.marcador_local,
+            "marcador_visitante_real": pred.partido.marcador_visitante,
+            "finalizado": pred.partido.finalizado,
+            "puntos": pred.puntos,
+        } for pred in predicciones]
+
+        jugadores_stats, equipos_stats, jornadas_stats = _calcular_analisis_avanzado()
+        filas_jugadores = [{
+            "jugador": d["jugador"].nombre,
+            "puntos": d["puntos"],
+            "exactos": d["exactos"],
+            "resultado": d["resultado"],
+            "fallos": d["fallos"],
+            "pct_acierto": d["pct_acierto"],
+            "promedio_puntos": d["promedio"],
+            "empates_predichos": d["empates_predichos"],
+            "empates_acertados": d["empates_acertados"],
+            "sesgo_goles": d["sesgo_goles"],
+        } for d in jugadores_stats]
+
+        preds_campeon = {pc.jugador_id: pc for pc in PrediccionCampeon.query.all()}
+        filas_posiciones = []
+        for j in Jugador.query.order_by(Jugador.nombre).all():
+            pc = preds_campeon.get(j.id)
+            puntos_campeon = (pc.puntos or 0) if pc else 0
+            filas_posiciones.append({
+                "jugador": j.nombre,
+                "puntos_predicciones": j.puntos_totales,
+                "puntos_campeon": puntos_campeon,
+                "puntos_total": j.puntos_totales + puntos_campeon,
+                "exactos": j.aciertos_exactos,
+                "resultado": j.aciertos_resultado,
+            })
+        filas_posiciones.sort(key=lambda x: x["puntos_total"], reverse=True)
+        for i, fila in enumerate(filas_posiciones, start=1):
+            fila["posicion"] = i
+
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+            pd.DataFrame(filas_posiciones).to_excel(writer, sheet_name="tabla_posiciones", index=False)
+            pd.DataFrame(filas_predicciones).to_excel(writer, sheet_name="predicciones", index=False)
+            pd.DataFrame(filas_jugadores).to_excel(writer, sheet_name="analisis_jugadores", index=False)
+            pd.DataFrame(equipos_stats).to_excel(writer, sheet_name="analisis_equipos", index=False)
+            pd.DataFrame(jornadas_stats).to_excel(writer, sheet_name="analisis_jornadas", index=False)
+        buffer.seek(0)
+
+        nombre = f"quiniela_data_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.xlsx"
+        return send_file(
+            buffer,
+            as_attachment=True,
+            download_name=nombre,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
     @app.route("/")

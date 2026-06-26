@@ -73,6 +73,10 @@
          class="q-tab {% if request.endpoint in ('jugadores', 'detalle_jugador') %}is-active{% endif %}">
         Jugadores
       </a>
+      <a href="{{ url_for('data_dashboard') }}"
+         class="q-tab {% if request.endpoint in ('data_dashboard', 'data_export') %}is-active{% endif %}">
+        Data
+      </a>
       {% endif %}
     </nav>
 
