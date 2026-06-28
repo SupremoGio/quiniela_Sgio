@@ -89,7 +89,10 @@ class PrediccionCampeon(db.Model):
     equipo = db.Column(db.String(80), nullable=False)
     puntos = db.Column(db.Integer, nullable=True)  # 5 si acertó, 0 si no, None si aún no se sabe
 
-    jugador = db.relationship("Jugador", backref=db.backref("prediccion_campeon", uselist=False))
+    jugador = db.relationship(
+        "Jugador",
+        backref=db.backref("prediccion_campeon", uselist=False, cascade="all, delete-orphan"),
+    )
 
     def __repr__(self):
         return f"<PrediccionCampeon {self.jugador_id}: {self.equipo}>"
@@ -103,6 +106,10 @@ class SnapshotPosicion(db.Model):
     posicion = db.Column(db.Integer, nullable=False)
     puntos = db.Column(db.Integer, nullable=False, default=0)
     tomado_en = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    jugador = db.relationship(
+        "Jugador", backref=db.backref("snapshots_posicion", cascade="all, delete-orphan")
+    )
 
 
 class ConfigApp(db.Model):
