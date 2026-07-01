@@ -238,8 +238,21 @@ def obtener_partidos(jornada=None, reintentos=3):
 def extraer_resultado(partido_api):
     """De un partido tal como lo devuelve la API, extrae los campos que
     nos importan en un formato simple.
+
+    Para partidos de eliminatoria que van a prórroga o penales, la API
+    reporta en score.fullTime el marcador al final de la prórroga/penales.
+    Usamos score.regularTime (marcador a 90 min) cuando duration indica
+    que el partido fue más allá del tiempo reglamentario.
     """
-    score = partido_api.get("score", {}).get("fullTime", {}) or {}
+    score_obj = partido_api.get("score", {}) or {}
+    duration = (score_obj.get("duration") or "REGULAR").upper()
+
+    if duration in ("EXTRA_TIME", "PENALTY_SHOOTOUT"):
+        # regularTime = marcador exacto a 90 minutos (lo que queremos puntuar)
+        score = score_obj.get("regularTime") or score_obj.get("fullTime") or {}
+    else:
+        score = score_obj.get("fullTime") or {}
+
     matchday = partido_api.get("matchday")
     stage = (partido_api.get("stage") or "").upper()
     # Para fase de grupos matchday viene como 1/2/3; para eliminatorias es None y usamos stage
@@ -253,4 +266,5 @@ def extraer_resultado(partido_api):
         "equipo_visitante": (partido_api.get("awayTeam") or {}).get("name"),
         "marcador_local": score.get("home"),
         "marcador_visitante": score.get("away"),
+        "duration": duration,  # REGULAR / EXTRA_TIME / PENALTY_SHOOTOUT
     }
