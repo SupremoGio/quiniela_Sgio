@@ -247,11 +247,14 @@ def extraer_resultado(partido_api):
     score_obj = partido_api.get("score", {}) or {}
     duration = (score_obj.get("duration") or "REGULAR").upper()
 
-    if duration in ("EXTRA_TIME", "PENALTY_SHOOTOUT"):
+    full_time = score_obj.get("fullTime") or {}
+    regular_time = score_obj.get("regularTime") or {}
+
+    if duration in ("EXTRA_TIME", "PENALTY_SHOOTOUT") and regular_time.get("home") is not None:
         # regularTime = marcador exacto a 90 minutos (lo que queremos puntuar)
-        score = score_obj.get("regularTime") or score_obj.get("fullTime") or {}
+        score = regular_time
     else:
-        score = score_obj.get("fullTime") or {}
+        score = full_time
 
     matchday = partido_api.get("matchday")
     stage = (partido_api.get("stage") or "").upper()

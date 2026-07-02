@@ -475,9 +475,10 @@ def crear_app():
                 continue
 
             total_api += 1
-            es_finalizado = datos["estado"] == "FINISHED"
             ml = datos["marcador_local"]
             mv = datos["marcador_visitante"]
+            # Solo consideramos finalizado si la API marcó FINISHED Y el marcador llegó
+            es_finalizado = datos["estado"] == "FINISHED" and ml is not None and mv is not None
 
             por_api_id = Partido.query.filter_by(api_match_id=datos["api_match_id"]).first()
 
@@ -498,32 +499,13 @@ def crear_app():
             if datos["fecha"]:
                 fecha_dt = datetime.fromisoformat(datos["fecha"].replace("Z", "+00:00"))
 
-            # Actualizar partido principal (con api_match_id)
-            if por_api_id:
-                por_api_id.api_match_id = datos["api_match_id"]
-                if fecha_dt:
-                    if not por_api_id.fecha:
-                        fechas_actualizadas += 1
-                    por_api_id.fecha = fecha_dt  # siempre sobreescribir — la API es autoritativa
-                if es_finalizado:
-                    por_api_id.marcador_local = ml
-                    por_api_id.marcador_visitante = mv
-                    por_api_id.finalizado = True
-                    partidos_actualizados += 1
-                    for pred in por_api_id.predicciones:
-                        pred.puntos = calcular_puntos(pred.pred_local, pred.pred_visitante, ml, mv)
-                        predicciones_calificadas += 1
-
-            # Actualizar partidos encontrados por alias (nombre en español u otra variante)
-            for partido in por_alias.values():
-                if por_api_id and partido.id == por_api_id.id:
-                    continue
-                if not partido.api_match_id:
-                    partido.api_match_id = datos["api_match_id"]
+            def _aplicar_resultado(partido):
+                """Aplica resultado API a un partido y recalifica predicciones."""
+                nonlocal partidos_actualizados, predicciones_calificadas, fechas_actualizadas
                 if fecha_dt:
                     if not partido.fecha:
                         fechas_actualizadas += 1
-                    partido.fecha = fecha_dt  # siempre sobreescribir
+                    partido.fecha = fecha_dt
                 if es_finalizado:
                     partido.marcador_local = ml
                     partido.marcador_visitante = mv
@@ -532,6 +514,22 @@ def crear_app():
                     for pred in partido.predicciones:
                         pred.puntos = calcular_puntos(pred.pred_local, pred.pred_visitante, ml, mv)
                         predicciones_calificadas += 1
+                elif partido.finalizado and (partido.marcador_local is None or partido.marcador_visitante is None):
+                    # Quedó marcado finalizado sin marcador en un sync previo; resetear
+                    partido.finalizado = False
+
+            # Actualizar partido principal (con api_match_id)
+            if por_api_id:
+                por_api_id.api_match_id = datos["api_match_id"]
+                _aplicar_resultado(por_api_id)
+
+            # Actualizar partidos encontrados por alias (nombre en español u otra variante)
+            for partido in por_alias.values():
+                if por_api_id and partido.id == por_api_id.id:
+                    continue
+                if not partido.api_match_id:
+                    partido.api_match_id = datos["api_match_id"]
+                _aplicar_resultado(partido)
 
         db.session.commit()
         return partidos_actualizados, predicciones_calificadas, fechas_actualizadas, sin_match, total_api, encontrados_en_db
