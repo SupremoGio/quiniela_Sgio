@@ -53,6 +53,10 @@ class Partido(db.Model):
     marcador_visitante = db.Column(db.Integer, nullable=True)
     finalizado = db.Column(db.Boolean, default=False)
 
+    # Ganador real según la API: "L" (local), "V" (visitante), None si no finalizado.
+    # Difiere de resultado_real cuando el partido fue a ET/penales (empate a 90 min).
+    ganador_api = db.Column(db.String(1), nullable=True)
+
     # id del partido en football-data.org, para poder sincronizar resultados
     api_match_id = db.Column(db.Integer, nullable=True, unique=True)
 

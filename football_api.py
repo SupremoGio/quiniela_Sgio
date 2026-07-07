@@ -271,4 +271,5 @@ def extraer_resultado(partido_api):
         "marcador_local": score.get("home"),
         "marcador_visitante": score.get("away"),
         "duration": duration,  # REGULAR / EXTRA_TIME / PENALTY_SHOOTOUT
+        "winner": (score_obj.get("winner") or "").upper(),  # HOME_TEAM / AWAY_TEAM / DRAW / ""
     }

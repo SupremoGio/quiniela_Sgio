@@ -103,7 +103,7 @@ def _get_equipos_eliminados():
                 if not clasifico:
                     eliminados.add(equipo)
 
-    # Fuente 2: perdedores directos en eliminatorias (resultado no empate a 90 min)
+    # Fuente 2: perdedores en eliminatorias
     for p in partidos_eliminatoria:
         if not p.finalizado or p.marcador_local is None or p.marcador_visitante is None:
             continue
@@ -111,7 +111,12 @@ def _get_equipos_eliminados():
             eliminados.add(p.equipo_visitante)
         elif p.marcador_visitante > p.marcador_local:
             eliminados.add(p.equipo_local)
-        # empate a 90 min (fue a prórroga/penales) → usar fuente 3 manual
+        elif p.ganador_api == "L":
+            # Empate a 90 min → fue a ET/penales; ganó el local, pierde el visitante
+            eliminados.add(p.equipo_visitante)
+        elif p.ganador_api == "V":
+            # Empate a 90 min → fue a ET/penales; ganó el visitante, pierde el local
+            eliminados.add(p.equipo_local)
 
     # Fuente 3: overrides manuales (empates a 90 min / correcciones)
     cfg = ConfigApp.query.filter_by(clave="equipos_eliminados_extra").first()
@@ -301,6 +306,7 @@ def crear_app():
             for ddl in [
                 "ALTER TABLE jugadores ADD COLUMN pais VARCHAR(2)",
                 "ALTER TABLE predicciones_campeon ADD COLUMN puntos INTEGER",
+                "ALTER TABLE partidos ADD COLUMN ganador_api VARCHAR(1)",
             ]:
                 try:
                     conn.execute(db.text(ddl))
@@ -571,6 +577,14 @@ def crear_app():
                     partido.marcador_local = ml
                     partido.marcador_visitante = mv
                     partido.finalizado = True
+                    # Guardar ganador real (incluye ET/penales): "L", "V" o None
+                    w = datos.get("winner", "")
+                    if w == "HOME_TEAM":
+                        partido.ganador_api = "L"
+                    elif w == "AWAY_TEAM":
+                        partido.ganador_api = "V"
+                    else:
+                        partido.ganador_api = None
                     partidos_actualizados += 1
                     for pred in partido.predicciones:
                         pred.puntos = calcular_puntos(pred.pred_local, pred.pred_visitante, ml, mv)
