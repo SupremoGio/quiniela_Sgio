@@ -72,29 +72,55 @@ def _buscar_jugador_insensible(nombre_jugador):
 def _get_equipos_eliminados():
     """Devuelve un set de nombres de equipos ya eliminados.
 
-    Combina dos fuentes:
-    1. Auto-detección: en jornadas de eliminatoria (>= 4), el equipo que
-       perdió a los 90 min está fuera. Los empates (prórroga/penales) no
-       se pueden detectar automáticamente.
-    2. Config manual: clave 'equipos_eliminados_extra' en ConfigApp, con
-       nombres separados por coma — para cubrir los empates a 90 min.
+    Combina tres fuentes:
+    1. Fase de grupos: si ya hay partidos de eliminatoria (jornada >= 4)
+       cargados, cualquier equipo que apareció en jornadas 1-3 pero NO
+       aparece en ningún partido de eliminatoria no clasificó → eliminado.
+    2. Eliminatorias: el equipo que perdió a los 90 min en jornada >= 4
+       queda eliminado. Los empates (prórroga/penales) no se detectan aquí.
+    3. Config manual: clave 'equipos_eliminados_extra', nombres separados
+       por coma — para cubrir empates a 90 min donde no se puede saber
+       el perdedor automáticamente.
     """
     eliminados = set()
-    for p in Partido.query.filter(Partido.jornada >= 4, Partido.finalizado.is_(True)).all():
-        if p.marcador_local is None or p.marcador_visitante is None:
+
+    partidos_eliminatoria = Partido.query.filter(Partido.jornada >= 4).all()
+    partidos_grupos = Partido.query.filter(Partido.jornada <= 3).all()
+
+    # Fuente 1: equipos de grupos que no clasificaron a eliminatorias
+    if partidos_eliminatoria:
+        equipos_en_eliminatoria = set()
+        for p in partidos_eliminatoria:
+            equipos_en_eliminatoria.add(p.equipo_local)
+            equipos_en_eliminatoria.add(p.equipo_visitante)
+
+        for p in partidos_grupos:
+            for equipo in (p.equipo_local, p.equipo_visitante):
+                clasifico = any(
+                    football_api.equipos_coinciden(equipo, e)
+                    for e in equipos_en_eliminatoria
+                )
+                if not clasifico:
+                    eliminados.add(equipo)
+
+    # Fuente 2: perdedores directos en eliminatorias (resultado no empate a 90 min)
+    for p in partidos_eliminatoria:
+        if not p.finalizado or p.marcador_local is None or p.marcador_visitante is None:
             continue
         if p.marcador_local > p.marcador_visitante:
             eliminados.add(p.equipo_visitante)
         elif p.marcador_visitante > p.marcador_local:
             eliminados.add(p.equipo_local)
-        # empate → no podemos saber quién pasó sin datos extra
+        # empate a 90 min (fue a prórroga/penales) → usar fuente 3 manual
 
+    # Fuente 3: overrides manuales (empates a 90 min / correcciones)
     cfg = ConfigApp.query.filter_by(clave="equipos_eliminados_extra").first()
     if cfg and cfg.valor:
         for nombre in cfg.valor.split(","):
             nombre = nombre.strip()
             if nombre:
                 eliminados.add(nombre)
+
     return eliminados
 
 
