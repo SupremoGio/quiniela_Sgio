@@ -104,6 +104,13 @@ def _get_equipos_eliminados():
                     eliminados.add(equipo)
 
     # Fuente 2: perdedores en eliminatorias
+    # Pre-calcular equipos por jornada para detectar quién NO avanzó
+    from collections import defaultdict
+    equipos_por_jornada = defaultdict(set)
+    for p in Partido.query.filter(Partido.jornada >= 4).all():
+        equipos_por_jornada[p.jornada].add(p.equipo_local)
+        equipos_por_jornada[p.jornada].add(p.equipo_visitante)
+
     for p in partidos_eliminatoria:
         if not p.finalizado or p.marcador_local is None or p.marcador_visitante is None:
             continue
@@ -111,12 +118,23 @@ def _get_equipos_eliminados():
             eliminados.add(p.equipo_visitante)
         elif p.marcador_visitante > p.marcador_local:
             eliminados.add(p.equipo_local)
-        elif p.ganador_api == "L":
-            # Empate a 90 min → fue a ET/penales; ganó el local, pierde el visitante
-            eliminados.add(p.equipo_visitante)
-        elif p.ganador_api == "V":
-            # Empate a 90 min → fue a ET/penales; ganó el visitante, pierde el local
-            eliminados.add(p.equipo_local)
+        else:
+            # Empate a 90 min (ET/penales): usar ganador_api si disponible,
+            # si no, detectar por ausencia en la siguiente jornada
+            if p.ganador_api == "L":
+                eliminados.add(p.equipo_visitante)
+            elif p.ganador_api == "V":
+                eliminados.add(p.equipo_local)
+            else:
+                next_equipos = equipos_por_jornada.get(p.jornada + 1, set())
+                if next_equipos:
+                    for equipo in (p.equipo_local, p.equipo_visitante):
+                        avanzo = any(
+                            football_api.equipos_coinciden(equipo, e)
+                            for e in next_equipos
+                        )
+                        if not avanzo:
+                            eliminados.add(equipo)
 
     # Fuente 3: overrides manuales (empates a 90 min / correcciones)
     cfg = ConfigApp.query.filter_by(clave="equipos_eliminados_extra").first()
