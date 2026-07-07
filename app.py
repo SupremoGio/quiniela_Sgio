@@ -301,18 +301,20 @@ def crear_app():
 
     with app.app_context():
         db.create_all()
-        # Migración: agrega columnas nuevas si no existen (compatible SQLite + PG)
-        with db.engine.connect() as conn:
-            for ddl in [
-                "ALTER TABLE jugadores ADD COLUMN pais VARCHAR(2)",
-                "ALTER TABLE predicciones_campeon ADD COLUMN puntos INTEGER",
-                "ALTER TABLE partidos ADD COLUMN ganador_api VARCHAR(1)",
-            ]:
-                try:
+        # Migración: agrega columnas nuevas si no existen (compatible SQLite + PG).
+        # Cada DDL usa su propia conexión para que un fallo (ej. "columna ya existe")
+        # no deje la transacción en estado abortado e impida los siguientes.
+        for ddl in [
+            "ALTER TABLE jugadores ADD COLUMN pais VARCHAR(2)",
+            "ALTER TABLE predicciones_campeon ADD COLUMN puntos INTEGER",
+            "ALTER TABLE partidos ADD COLUMN ganador_api VARCHAR(1)",
+        ]:
+            try:
+                with db.engine.connect() as conn:
                     conn.execute(db.text(ddl))
                     conn.commit()
-                except Exception:
-                    pass
+            except Exception:
+                pass
 
     _GDL = ZoneInfo("America/Mexico_City")
 
