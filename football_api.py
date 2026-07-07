@@ -65,6 +65,7 @@ _ALIAS_EQUIPO = {
     "islas cabo verde": ["cape verde", "cape verde islands"],
     "guinea bissau": ["guinea-bissau"],
     "paises bajos": ["netherlands"],
+    "paises ba": ["netherlands"],
     "holanda": ["netherlands"],
     "inglaterra": ["england"],
     "alemania": ["germany"],
