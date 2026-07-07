@@ -69,6 +69,40 @@ def _buscar_jugador_insensible(nombre_jugador):
     return None
 
 
+def _get_equipos_eliminados():
+    """Devuelve un set de nombres de equipos ya eliminados.
+
+    Combina dos fuentes:
+    1. Auto-detección: en jornadas de eliminatoria (>= 4), el equipo que
+       perdió a los 90 min está fuera. Los empates (prórroga/penales) no
+       se pueden detectar automáticamente.
+    2. Config manual: clave 'equipos_eliminados_extra' en ConfigApp, con
+       nombres separados por coma — para cubrir los empates a 90 min.
+    """
+    eliminados = set()
+    for p in Partido.query.filter(Partido.jornada >= 4, Partido.finalizado.is_(True)).all():
+        if p.marcador_local is None or p.marcador_visitante is None:
+            continue
+        if p.marcador_local > p.marcador_visitante:
+            eliminados.add(p.equipo_visitante)
+        elif p.marcador_visitante > p.marcador_local:
+            eliminados.add(p.equipo_local)
+        # empate → no podemos saber quién pasó sin datos extra
+
+    cfg = ConfigApp.query.filter_by(clave="equipos_eliminados_extra").first()
+    if cfg and cfg.valor:
+        for nombre in cfg.valor.split(","):
+            nombre = nombre.strip()
+            if nombre:
+                eliminados.add(nombre)
+    return eliminados
+
+
+def _equipo_esta_eliminado(equipo, eliminados):
+    """True si `equipo` coincide (tolerante) con alguno del set `eliminados`."""
+    return any(football_api.equipos_coinciden(equipo, e) for e in eliminados)
+
+
 def _guardar_prediccion_campeon(nombre_jugador, equipo):
     jugador = _buscar_jugador_insensible(nombre_jugador)
     if not jugador:
@@ -294,6 +328,7 @@ def crear_app():
     app.jinja_env.globals["avatar_color"] = _avatar_color
     app.jinja_env.globals["inicial"] = _inicial
     app.jinja_env.globals["bandera_emoji"] = _bandera_emoji
+    app.jinja_env.filters["check_eliminado"] = _equipo_esta_eliminado
 
     # ---------- helpers internos ----------
     def _tomar_snapshot():
@@ -755,6 +790,9 @@ def crear_app():
         preds_campeon = {pc.jugador_id: pc for pc in PrediccionCampeon.query.all()}
         cfg = ConfigApp.query.filter_by(clave="campeon_real").first()
         campeon_real = cfg.valor if cfg else None
+        equipos_eliminados = _get_equipos_eliminados()
+        cfg_extra = ConfigApp.query.filter_by(clave="equipos_eliminados_extra").first()
+        eliminados_extra_str = cfg_extra.valor if cfg_extra else ""
 
         stats = {}
         for j in jugadores:
@@ -788,7 +826,9 @@ def crear_app():
                                partidos_por_jornada=partidos_por_jornada,
                                jornada_sel=jornada_sel, stats=stats,
                                preds_campeon=preds_campeon, campeon_real=campeon_real,
-                               movimiento=movimiento)
+                               movimiento=movimiento,
+                               equipos_eliminados=equipos_eliminados,
+                               eliminados_extra_str=eliminados_extra_str)
 
     @app.route("/campeon", methods=["POST"])
     @login_required
@@ -807,6 +847,19 @@ def crear_app():
         db.session.commit()
         ganadores = sum(1 for pc in PrediccionCampeon.query.all() if pc.puntos == 5)
         flash(f"Campeón establecido: {equipo}. {ganadores} jugador(es) con 5 pts extra.", "success")
+        return redirect(url_for("index"))
+
+    @app.route("/eliminados", methods=["POST"])
+    @login_required
+    def set_eliminados_extra():
+        valor = request.form.get("eliminados_extra", "").strip()
+        cfg = ConfigApp.query.filter_by(clave="equipos_eliminados_extra").first()
+        if cfg:
+            cfg.valor = valor
+        else:
+            db.session.add(ConfigApp(clave="equipos_eliminados_extra", valor=valor))
+        db.session.commit()
+        flash("Equipos eliminados extra guardados.", "success")
         return redirect(url_for("index"))
 
     @app.route("/jornada/<int:jornada>")
@@ -1168,6 +1221,7 @@ def crear_app():
         ranking = next((i + 1 for i, j in enumerate(todos) if j.id == jugador_id), None)
         total_jugadores = len(todos)
         pc = PrediccionCampeon.query.filter_by(jugador_id=jugador_id).first()
+        equipos_eliminados = _get_equipos_eliminados()
         return render_template(
             "jugador_detalle.html",
             jugador=jugador,
@@ -1175,6 +1229,7 @@ def crear_app():
             ranking=ranking,
             total_jugadores=total_jugadores,
             pred_campeon=pc,
+            equipos_eliminados=equipos_eliminados,
         )
 
     return app

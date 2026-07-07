@@ -31,8 +31,17 @@
       &nbsp;·&nbsp;
       <strong style="color:var(--ink);">{{ jugador.puntos_totales }} pts</strong> en total
       {% if pred_campeon %}
-        &nbsp;·&nbsp; 🏆 {{ pred_campeon.equipo }}
-        {% if pred_campeon.puntos == 5 %}<span style="color:var(--field);font-weight:700;"> ✓ +5 pts</span>{% endif %}
+        {% set elim = equipos_eliminados and pred_campeon.equipo | check_eliminado(equipos_eliminados) %}
+        &nbsp;·&nbsp; 🏆
+        {% if pred_campeon.puntos == 5 %}
+          <span style="color:var(--field);font-weight:700;">{{ pred_campeon.equipo }} ✓ +5 pts</span>
+        {% elif elim %}
+          <span style="text-decoration:line-through;opacity:.55;">{{ pred_campeon.equipo }}</span>
+          <span style="background:var(--red);color:#fff;font-size:9px;font-weight:700;
+                       padding:1px 5px;border-radius:4px;letter-spacing:.03em;vertical-align:middle;">ELIMINADO</span>
+        {% else %}
+          {{ pred_campeon.equipo }}
+        {% endif %}
       {% endif %}
     </p>
   </div>

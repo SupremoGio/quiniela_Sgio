@@ -51,6 +51,23 @@
                     background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:14px;">
       <button class="btn-accent" type="submit" style="padding:9px 16px;">✓</button>
     </form>
+    <hr style="border:none;border-top:1px solid var(--line);margin:14px 0 10px;">
+    <p style="font-family:var(--font-head);font-weight:600;font-size:13px;letter-spacing:.04em;
+              text-transform:uppercase;margin:0 0 6px;">
+      ❌ Equipos eliminados extra
+      <span style="font-family:var(--font-body);font-size:11px;color:var(--sub);
+                   text-transform:none;letter-spacing:0;font-weight:400;margin-left:4px;">
+        (para empates a 90 min que fueron a prórroga/penales)
+      </span>
+    </p>
+    <form method="post" action="{{ url_for('set_eliminados_extra') }}" class="d-flex gap-2 align-items-center">
+      <input type="text" name="eliminados_extra"
+             placeholder="Ej: BÉLGICA, SENEGAL, AUSTRALIA"
+             value="{{ eliminados_extra_str or '' }}"
+             style="flex:1;padding:9px 12px;border-radius:10px;border:1px solid var(--line);
+                    background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:13px;">
+      <button class="btn-ghost" type="submit" style="padding:9px 14px;">✓</button>
+    </form>
   </div>
 </div>
 {% endif %}
@@ -214,10 +231,15 @@
       </div>
       {# Pick del campeón como sub-línea #}
       {% if not jornada_sel and pc %}
+        {% set elim = equipos_eliminados and pc.equipo | check_eliminado(equipos_eliminados) %}
         <div style="font-family:var(--font-body);font-size:11px;color:var(--sub);display:flex;align-items:center;gap:4px;margin-top:1px;">
           🏆
           {% if campeon_real and pc.puntos == 5 %}
             <span style="color:var(--field);font-weight:700;">{{ pc.equipo }} ✓ +5</span>
+          {% elif elim %}
+            <span style="text-decoration:line-through;opacity:.55;">{{ pc.equipo }}</span>
+            <span style="background:var(--red);color:#fff;font-size:9px;font-weight:700;
+                         padding:1px 5px;border-radius:4px;letter-spacing:.03em;">ELIMINADO</span>
           {% else %}
             {{ pc.equipo }}
           {% endif %}
