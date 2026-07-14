@@ -521,6 +521,19 @@ def crear_app():
                         partido = p_db
                         break
 
+            # 4. Buscar por alias con local/visitante invertidos: en partidos de
+            # sede neutral (semifinales, final) el orden "local/visitante" es solo
+            # nominal y puede venir al revés de como quedó cargado originalmente.
+            invertido = False
+            if partido is None:
+                for p_db in todos_en_db:
+                    if (football_api.equipos_coinciden(p_db.equipo_local, datos["equipo_visitante"])
+                            and football_api.equipos_coinciden(p_db.equipo_visitante, datos["equipo_local"])
+                            and not p_db.api_match_id):
+                        partido = p_db
+                        invertido = True
+                        break
+
             if partido is None:
                 partido = Partido(
                     jornada=datos["jornada"],
@@ -538,8 +551,11 @@ def crear_app():
                 partido.fecha = datetime.fromisoformat(datos["fecha"].replace("Z", "+00:00"))
 
             if datos["estado"] == "FINISHED":
-                partido.marcador_local = datos["marcador_local"]
-                partido.marcador_visitante = datos["marcador_visitante"]
+                ml, mv = datos["marcador_local"], datos["marcador_visitante"]
+                if invertido:
+                    ml, mv = mv, ml
+                partido.marcador_local = ml
+                partido.marcador_visitante = mv
                 partido.finalizado = True
 
         db.session.commit()
@@ -570,13 +586,21 @@ def crear_app():
             por_api_id = Partido.query.filter_by(api_match_id=datos["api_match_id"]).first()
 
             por_alias = {}
+            por_alias_invertido = {}
             for p_db in todos_en_db:
                 local_ok = football_api.equipos_coinciden(p_db.equipo_local, datos["equipo_local"])
                 visit_ok = football_api.equipos_coinciden(p_db.equipo_visitante, datos["equipo_visitante"])
                 if local_ok and visit_ok:
                     por_alias[p_db.id] = p_db
+                    continue
+                # Sede neutral (semifinales, final): el orden local/visitante puede
+                # venir invertido respecto a como quedó cargado el partido en la DB.
+                local_ok_inv = football_api.equipos_coinciden(p_db.equipo_local, datos["equipo_visitante"])
+                visit_ok_inv = football_api.equipos_coinciden(p_db.equipo_visitante, datos["equipo_local"])
+                if local_ok_inv and visit_ok_inv:
+                    por_alias_invertido[p_db.id] = p_db
 
-            if not por_api_id and not por_alias:
+            if not por_api_id and not por_alias and not por_alias_invertido:
                 if es_finalizado:
                     sin_match.append(f"{datos['equipo_local']} vs {datos['equipo_visitante']}")
                 continue
@@ -586,19 +610,25 @@ def crear_app():
             if datos["fecha"]:
                 fecha_dt = datetime.fromisoformat(datos["fecha"].replace("Z", "+00:00"))
 
-            def _aplicar_resultado(partido):
-                """Aplica resultado API a un partido y recalifica predicciones."""
+            def _aplicar_resultado(partido, invertido=False):
+                """Aplica resultado API a un partido y recalifica predicciones.
+                Si `invertido` es True, el local/visitante de la API está al
+                revés respecto a como está guardado `partido`, así que el
+                marcador y el ganador se voltean antes de aplicarlos."""
                 nonlocal partidos_actualizados, predicciones_calificadas, fechas_actualizadas
                 if fecha_dt:
                     if not partido.fecha:
                         fechas_actualizadas += 1
                     partido.fecha = fecha_dt
                 if es_finalizado:
-                    partido.marcador_local = ml
-                    partido.marcador_visitante = mv
+                    m_local, m_visit = (mv, ml) if invertido else (ml, mv)
+                    partido.marcador_local = m_local
+                    partido.marcador_visitante = m_visit
                     partido.finalizado = True
                     # Guardar ganador real (incluye ET/penales): "L", "V" o None
                     w = datos.get("winner", "")
+                    if invertido:
+                        w = {"HOME_TEAM": "AWAY_TEAM", "AWAY_TEAM": "HOME_TEAM"}.get(w, w)
                     if w == "HOME_TEAM":
                         partido.ganador_api = "L"
                     elif w == "AWAY_TEAM":
@@ -607,7 +637,7 @@ def crear_app():
                         partido.ganador_api = None
                     partidos_actualizados += 1
                     for pred in partido.predicciones:
-                        pred.puntos = calcular_puntos(pred.pred_local, pred.pred_visitante, ml, mv)
+                        pred.puntos = calcular_puntos(pred.pred_local, pred.pred_visitante, m_local, m_visit)
                         predicciones_calificadas += 1
                 elif partido.finalizado and (partido.marcador_local is None or partido.marcador_visitante is None):
                     # Quedó marcado finalizado sin marcador en un sync previo; resetear
@@ -625,6 +655,14 @@ def crear_app():
                 if not partido.api_match_id:
                     partido.api_match_id = datos["api_match_id"]
                 _aplicar_resultado(partido)
+
+            # Actualizar partidos encontrados por alias con orden invertido
+            for partido in por_alias_invertido.values():
+                if por_api_id and partido.id == por_api_id.id:
+                    continue
+                if not partido.api_match_id:
+                    partido.api_match_id = datos["api_match_id"]
+                _aplicar_resultado(partido, invertido=True)
 
         db.session.commit()
         return partidos_actualizados, predicciones_calificadas, fechas_actualizadas, sin_match, total_api, encontrados_en_db
@@ -1227,11 +1265,22 @@ def crear_app():
                 for p2 in partidos_jn:
                     if p2.id == p1.id or p2.id in procesados:
                         continue
-                    if (football_api.equipos_coinciden(p1.equipo_local, p2.equipo_local)
-                            and football_api.equipos_coinciden(p1.equipo_visitante, p2.equipo_visitante)):
+
+                    directo = (football_api.equipos_coinciden(p1.equipo_local, p2.equipo_local)
+                               and football_api.equipos_coinciden(p1.equipo_visitante, p2.equipo_visitante))
+                    # Sede neutral (semifinales, final): mismo cruce pero con
+                    # local/visitante intercambiados entre los dos registros.
+                    invertido = (not directo
+                                 and football_api.equipos_coinciden(p1.equipo_local, p2.equipo_visitante)
+                                 and football_api.equipos_coinciden(p1.equipo_visitante, p2.equipo_local))
+
+                    if directo or invertido:
                         # Keeper = el que tiene predicciones; other = el vacío
                         keeper = p1 if len(p1.predicciones) >= len(p2.predicciones) else p2
                         other  = p2 if keeper is p1 else p1
+                        # other_invertido: True si "other" tiene local/visitante
+                        # al revés respecto a la orientación de "keeper"
+                        other_invertido = invertido
 
                         if not keeper.fecha and other.fecha:
                             keeper.fecha = other.fecha
@@ -1241,8 +1290,12 @@ def crear_app():
                             db.session.flush()
                             keeper.api_match_id = api_id
                         if not keeper.finalizado and other.finalizado:
-                            keeper.marcador_local   = other.marcador_local
-                            keeper.marcador_visitante = other.marcador_visitante
+                            if other_invertido:
+                                keeper.marcador_local   = other.marcador_visitante
+                                keeper.marcador_visitante = other.marcador_local
+                            else:
+                                keeper.marcador_local   = other.marcador_local
+                                keeper.marcador_visitante = other.marcador_visitante
                             keeper.finalizado = True
                             for pred in keeper.predicciones:
                                 pred.puntos = calcular_puntos(
@@ -1250,12 +1303,18 @@ def crear_app():
                                     keeper.marcador_local, keeper.marcador_visitante)
 
                         for pred in list(other.predicciones):
+                            if other_invertido:
+                                pred.pred_local, pred.pred_visitante = pred.pred_visitante, pred.pred_local
                             existe = Prediccion.query.filter_by(
                                 jugador_id=pred.jugador_id, partido_id=keeper.id).first()
                             if existe:
                                 db.session.delete(pred)
                             else:
                                 pred.partido_id = keeper.id
+                                if keeper.finalizado:
+                                    pred.puntos = calcular_puntos(
+                                        pred.pred_local, pred.pred_visitante,
+                                        keeper.marcador_local, keeper.marcador_visitante)
 
                         db.session.delete(other)
                         procesados.add(other.id)
