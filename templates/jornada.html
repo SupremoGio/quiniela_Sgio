@@ -75,18 +75,27 @@
   </div>
 
   {% if current_user.is_authenticated %}
-  <details style="margin-top:8px;">
-    <summary style="cursor:pointer;font-size:11px;color:var(--sub);">✎ corregir nombres de equipo</summary>
-    <form method="post" action="{{ url_for('renombrar_equipos', partido_id=partido.id) }}"
-          style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;">
-      <input type="text" name="equipo_local" value="{{ partido.equipo_local }}" required
-             style="background:var(--bg2);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 10px;font-family:var(--font-body);font-size:13px;outline:none;">
-      <span style="color:var(--sub);">vs</span>
-      <input type="text" name="equipo_visitante" value="{{ partido.equipo_visitante }}" required
-             style="background:var(--bg2);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 10px;font-family:var(--font-body);font-size:13px;outline:none;">
-      <button class="btn-ghost" type="submit" style="padding:8px 14px;font-size:12px;">Guardar</button>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center;">
+    <details>
+      <summary style="cursor:pointer;font-size:11px;color:var(--sub);">✎ corregir nombres</summary>
+      <form method="post" action="{{ url_for('renombrar_equipos', partido_id=partido.id) }}"
+            style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;">
+        <input type="text" name="equipo_local" value="{{ partido.equipo_local }}" required
+               style="background:var(--bg2);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 10px;font-family:var(--font-body);font-size:13px;outline:none;">
+        <span style="color:var(--sub);">vs</span>
+        <input type="text" name="equipo_visitante" value="{{ partido.equipo_visitante }}" required
+               style="background:var(--bg2);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 10px;font-family:var(--font-body);font-size:13px;outline:none;">
+        <button class="btn-ghost" type="submit" style="padding:8px 14px;font-size:12px;">Guardar</button>
+      </form>
+    </details>
+    <form method="post" action="{{ url_for('eliminar_partido', partido_id=partido.id) }}"
+          onsubmit="return confirm('¿Eliminar el partido {{ partido.equipo_local }} vs {{ partido.equipo_visitante }}? También borra sus predicciones.');">
+      <button class="btn-ghost" type="submit"
+              style="font-size:11px;padding:5px 10px;color:var(--red);border-color:color-mix(in srgb,var(--red) 35%,transparent);">
+        🗑 borrar partido
+      </button>
     </form>
-  </details>
+  </div>
   {% endif %}
 
   {# Formulario para ingresar/editar resultado (solo admin) #}

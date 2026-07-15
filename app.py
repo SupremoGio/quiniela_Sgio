@@ -1088,6 +1088,17 @@ def crear_app():
         flash(f"Renombrado: {eq_local} vs {eq_visitante}. Ahora corre \"Fix duplicados\" si aplica.", "success")
         return redirect(url_for("ver_jornada", jornada=partido.jornada))
 
+    @app.route("/partido/<int:partido_id>/eliminar", methods=["POST"])
+    @login_required
+    def eliminar_partido(partido_id):
+        partido = Partido.query.get_or_404(partido_id)
+        jornada = partido.jornada
+        nombre = f"{partido.equipo_local} vs {partido.equipo_visitante}"
+        db.session.delete(partido)
+        db.session.commit()
+        flash(f"Partido '{nombre}' eliminado.", "success")
+        return redirect(url_for("ver_jornada", jornada=jornada))
+
     @app.route("/jornada/<int:jornada>/eliminar", methods=["POST"])
     @login_required
     def eliminar_jornada(jornada):
