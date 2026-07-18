@@ -92,8 +92,8 @@
            style="font-family:var(--font-head);font-weight:600;font-size:15px;letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px;">
         Seleccionar archivo
       </div>
-      <div style="font-family:var(--font-body);font-size:13px;color:var(--sub);">.xlsx · .xls · .csv</div>
-      <input type="file" name="archivo" accept=".xlsx,.xls,.csv" required style="display:none;"
+      <div style="font-family:var(--font-body);font-size:13px;color:var(--sub);">.xlsx · .xls · .csv · .pdf</div>
+      <input type="file" name="archivo" accept=".xlsx,.xls,.csv,.pdf" required style="display:none;"
              onchange="document.getElementById('upload-filename').textContent = this.files[0]?.name || 'Seleccionar archivo'">
     </label>
   </div>

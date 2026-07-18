@@ -225,6 +225,53 @@ def _importar_formato_largo(df):
     return filas_ok, filas_error
 
 
+def _leer_pdf_como_df(archivo_bytes):
+    """Extrae la primera tabla de un PDF y devuelve un DataFrame limpio.
+
+    Busca la fila que contiene 'INTEGRANTE' o 'JUGADOR' como encabezado,
+    descarta las filas anteriores, y devuelve el DataFrame con esa fila
+    como cabecera (listo para pasarse a _importar_formato_ancho).
+    """
+    import pdfplumber
+
+    with pdfplumber.open(archivo_bytes) as pdf:
+        filas = []
+        for page in pdf.pages:
+            tabla = page.extract_table()
+            if tabla:
+                filas.extend(tabla)
+
+    if not filas:
+        raise ValueError("No se encontró ninguna tabla en el PDF.")
+
+    # Encontrar la fila de encabezado (la que contiene INTEGRANTE/JUGADOR)
+    header_idx = None
+    for i, fila in enumerate(filas):
+        vals = [str(v or "").strip().upper() for v in fila]
+        if any(v in ("INTEGRANTE", "JUGADOR", "NOMBRE") for v in vals):
+            header_idx = i
+            break
+
+    if header_idx is None:
+        # Si no hay encabezado reconocible, asumir que la primera fila no vacía es el header
+        for i, fila in enumerate(filas):
+            if any(v for v in fila if v):
+                header_idx = i
+                break
+
+    if header_idx is None:
+        raise ValueError("No se pudo identificar la fila de encabezado en el PDF.")
+
+    headers = [str(v or "").strip() for v in filas[header_idx]]
+    data = []
+    for fila in filas[header_idx + 1:]:
+        if any(v for v in fila if v):  # ignorar filas completamente vacías
+            data.append([str(v or "").strip() for v in fila])
+
+    df = pd.DataFrame(data, columns=headers)
+    return df
+
+
 def _parsear_marcador(valor):
     """'o'/'O' (o vacío) significa 0 goles. Lanza ValueError si no es válido."""
     if valor is None:
@@ -1126,10 +1173,34 @@ def crear_app():
         if request.method == "POST":
             archivo = request.files.get("archivo")
             if not archivo or archivo.filename == "":
-                flash("Selecciona un archivo .xlsx o .csv", "error")
+                flash("Selecciona un archivo .xlsx, .csv o .pdf", "error")
                 return redirect(url_for("upload"))
 
             es_csv = archivo.filename.lower().endswith(".csv")
+            es_pdf = archivo.filename.lower().endswith(".pdf")
+
+            if es_pdf:
+                # PDF: extraer tabla, convertir a formato ancho y pasar directo a importar
+                jornada_form = request.form.get("jornada", "").strip()
+                jornada = int(jornada_form) if jornada_form.isdigit() else None
+                if jornada is None:
+                    flash("Para archivos PDF debes seleccionar la fase en el desplegable.", "error")
+                    return redirect(url_for("upload"))
+                try:
+                    import io as _io
+                    archivo_bytes = _io.BytesIO(archivo.read())
+                    df_pdf = _leer_pdf_como_df(archivo_bytes)
+                    filas_ok, filas_error = _importar_formato_ancho(df_pdf, jornada)
+                except ValueError as exc:
+                    flash(str(exc), "error")
+                    return redirect(url_for("upload"))
+                except Exception as exc:
+                    flash(f"No se pudo procesar el PDF: {exc}", "error")
+                    return redirect(url_for("upload"))
+                db.session.commit()
+                flash(f"Importadas {filas_ok} predicciones desde PDF. {filas_error} fila(s) con error.", "success")
+                return redirect(url_for("index"))
+
             try:
                 if es_csv:
                     df = pd.read_csv(archivo)
