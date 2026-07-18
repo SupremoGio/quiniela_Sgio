@@ -263,12 +263,29 @@ def _leer_pdf_como_df(archivo_bytes):
         raise ValueError("No se pudo identificar la fila de encabezado en el PDF.")
 
     headers = [str(v or "").strip() for v in filas[header_idx]]
+
+    # Deduplicar columnas vacías o repetidas para que fila[col] devuelva escalar
+    seen = {}
+    headers_uniq = []
+    for h in headers:
+        key = h if h else "_vacío"
+        if key in seen:
+            seen[key] += 1
+            headers_uniq.append(f"{key}_{seen[key]}")
+        else:
+            seen[key] = 0
+            headers_uniq.append(key)
+
     data = []
     for fila in filas[header_idx + 1:]:
         if any(v for v in fila if v):  # ignorar filas completamente vacías
             data.append([str(v or "").strip() for v in fila])
 
-    df = pd.DataFrame(data, columns=headers)
+    df = pd.DataFrame(data, columns=headers_uniq)
+
+    # Eliminar columnas completamente vacías que vengan del PDF
+    df = df.loc[:, ~df.columns.str.startswith("_vacío")]
+
     return df
 
 
