@@ -2,6 +2,43 @@
 {% block title %}Tabla de posiciones — Quiniela Mundial 2026{% endblock %}
 {% block content %}
 
+{# ── BANNER DE QUINIELA CERRADA ── #}
+{% if quiniela_cerrada and campeon_real %}
+<div style="position:relative;overflow:hidden;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 40%,#0f3460 100%);
+            border-radius:16px;padding:clamp(20px,4vw,32px);margin-bottom:clamp(20px,3.6vw,28px);
+            text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.35);">
+  {# Estrellas decorativas #}
+  <div aria-hidden="true" style="position:absolute;inset:0;pointer-events:none;overflow:hidden;">
+    <span style="position:absolute;top:12%;left:8%;font-size:22px;opacity:.25;animation:twinkle 3s infinite;">⭐</span>
+    <span style="position:absolute;top:18%;right:10%;font-size:18px;opacity:.2;animation:twinkle 3s .8s infinite;">⭐</span>
+    <span style="position:absolute;bottom:14%;left:14%;font-size:14px;opacity:.2;animation:twinkle 3s 1.4s infinite;">✦</span>
+    <span style="position:absolute;bottom:18%;right:8%;font-size:20px;opacity:.2;animation:twinkle 3s .4s infinite;">⭐</span>
+  </div>
+  <style>@keyframes twinkle{0%,100%{opacity:.15}50%{opacity:.45}}</style>
+  <div style="font-size:clamp(36px,8vw,56px);line-height:1;margin-bottom:10px;">🏆</div>
+  <div style="font-family:var(--font-head);font-weight:700;font-size:clamp(11px,2.5vw,13px);
+              letter-spacing:.2em;text-transform:uppercase;color:#f0c040;margin-bottom:8px;">
+    Campeón del Mundo
+  </div>
+  <div style="font-family:var(--font-head);font-weight:700;font-size:clamp(26px,6vw,42px);
+              color:#fff;letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px;">
+    🇪🇸 {{ campeon_real }} 🇪🇸
+  </div>
+  <div style="font-family:var(--font-body);font-size:13px;color:rgba(255,255,255,.55);margin-top:4px;">
+    FIFA World Cup 2026 · Quiniela finalizada
+  </div>
+  {% if current_user.is_authenticated %}
+  <form method="post" action="{{ url_for('abrir_quiniela') }}" style="margin-top:14px;">
+    <button class="btn-ghost" type="submit"
+            style="font-size:11px;padding:5px 12px;color:rgba(255,255,255,.5);
+                   border-color:rgba(255,255,255,.2);">
+      Reabrir quiniela
+    </button>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
+
 {# ── ENCABEZADO + ACCIONES ── #}
 <div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:clamp(14px,2.6vw,20px);">
   <div>
@@ -52,6 +89,32 @@
       <button class="btn-accent" type="submit" style="padding:9px 16px;">✓</button>
     </form>
     <hr style="border:none;border-top:1px solid var(--line);margin:14px 0 10px;">
+    {# Cerrar quiniela #}
+    {% if not quiniela_cerrada %}
+    <p style="font-family:var(--font-head);font-weight:600;font-size:13px;letter-spacing:.04em;
+              text-transform:uppercase;margin:0 0 6px;">
+      🔒 Cerrar quiniela
+      <span style="font-family:var(--font-body);font-size:11px;color:var(--sub);
+                   text-transform:none;letter-spacing:0;font-weight:400;margin-left:4px;">
+        (muestra banner de campeón final)
+      </span>
+    </p>
+    <form method="post" action="{{ url_for('cerrar_quiniela') }}"
+          onsubmit="return confirm('¿Cerrar la quiniela con España como campeón? Se asignarán los 5 pts a quienes la eligieron.');"
+          class="d-flex gap-2 align-items-center">
+      <input type="hidden" name="campeon_real" value="{{ campeon_real or 'España' }}">
+      <button class="btn-accent" type="submit"
+              style="padding:9px 18px;background:var(--gold);color:#1a1a1a;">
+        🏆 Cerrar quiniela · España campeón
+      </button>
+    </form>
+    <hr style="border:none;border-top:1px solid var(--line);margin:14px 0 10px;">
+    {% else %}
+    <p style="font-family:var(--font-body);font-size:12px;color:var(--sub);margin:0 0 10px;">
+      ✅ Quiniela cerrada. <strong>{{ campeon_real }}</strong> es el campeón.
+    </p>
+    <hr style="border:none;border-top:1px solid var(--line);margin:0 0 10px;">
+    {% endif %}
     <p style="font-family:var(--font-head);font-weight:600;font-size:13px;letter-spacing:.04em;
               text-transform:uppercase;margin:0 0 6px;">
       ❌ Equipos eliminados extra

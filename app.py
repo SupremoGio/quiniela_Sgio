@@ -952,6 +952,8 @@ def crear_app():
         preds_campeon = {pc.jugador_id: pc for pc in PrediccionCampeon.query.all()}
         cfg = ConfigApp.query.filter_by(clave="campeon_real").first()
         campeon_real = cfg.valor if cfg else None
+        cfg_cerrada = ConfigApp.query.filter_by(clave="quiniela_cerrada").first()
+        quiniela_cerrada = bool(cfg_cerrada and cfg_cerrada.valor == "1")
         equipos_eliminados = _get_equipos_eliminados()
         cfg_extra = ConfigApp.query.filter_by(clave="equipos_eliminados_extra").first()
         eliminados_extra_str = cfg_extra.valor if cfg_extra else ""
@@ -990,7 +992,8 @@ def crear_app():
                                preds_campeon=preds_campeon, campeon_real=campeon_real,
                                movimiento=movimiento,
                                equipos_eliminados=equipos_eliminados,
-                               eliminados_extra_str=eliminados_extra_str)
+                               eliminados_extra_str=eliminados_extra_str,
+                               quiniela_cerrada=quiniela_cerrada)
 
     @app.route("/campeon", methods=["POST"])
     @login_required
@@ -1009,6 +1012,39 @@ def crear_app():
         db.session.commit()
         ganadores = sum(1 for pc in PrediccionCampeon.query.all() if pc.puntos == 5)
         flash(f"Campeón establecido: {equipo}. {ganadores} jugador(es) con 5 pts extra.", "success")
+        return redirect(url_for("index"))
+
+    @app.route("/cerrar", methods=["POST"])
+    @login_required
+    def cerrar_quiniela():
+        equipo = request.form.get("campeon_real", "España").strip() or "España"
+        # Guardar campeón
+        cfg = ConfigApp.query.filter_by(clave="campeon_real").first()
+        if cfg:
+            cfg.valor = equipo
+        else:
+            db.session.add(ConfigApp(clave="campeon_real", valor=equipo))
+        for pc in PrediccionCampeon.query.all():
+            pc.puntos = 5 if football_api.equipos_coinciden(pc.equipo, equipo) else 0
+        # Marcar quiniela como cerrada
+        cfg_c = ConfigApp.query.filter_by(clave="quiniela_cerrada").first()
+        if cfg_c:
+            cfg_c.valor = "1"
+        else:
+            db.session.add(ConfigApp(clave="quiniela_cerrada", valor="1"))
+        db.session.commit()
+        ganadores = sum(1 for pc in PrediccionCampeon.query.all() if pc.puntos == 5)
+        flash(f"¡Quiniela cerrada! Campeón: {equipo}. {ganadores} jugador(es) con +5 pts.", "success")
+        return redirect(url_for("index"))
+
+    @app.route("/abrir", methods=["POST"])
+    @login_required
+    def abrir_quiniela():
+        cfg_c = ConfigApp.query.filter_by(clave="quiniela_cerrada").first()
+        if cfg_c:
+            cfg_c.valor = "0"
+            db.session.commit()
+        flash("Quiniela reabierta.", "success")
         return redirect(url_for("index"))
 
     @app.route("/eliminados", methods=["POST"])
